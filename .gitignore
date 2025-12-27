@@ -3,3 +3,16 @@ node_modules/
 dist/
 .env
 .DS_Store
+
+# Firebase service account
+field_management_backend/config/firebase-service-account.json
+
+# Optional: Flutter/Android/iOS build folders
+field_management_app/build/
+field_management_app/.flutter-plugins
+field_management_app/.flutter-plugins-dependencies
+field_management_app/.packages
+field_management_app/android/.gradle
+field_management_app/android/app/build/
+field_management_app/ios/Pods/
+field_management_app/ios/Runner.xcworkspace/
