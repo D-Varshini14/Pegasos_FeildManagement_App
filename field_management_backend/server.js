@@ -1,606 +1,3 @@
-// // const express = require('express');
-// // const cors = require('cors');
-// // const bcrypt = require('bcryptjs');
-// // const jwt = require('jsonwebtoken');
-// // const mysql = require('mysql2');
-// // require('dotenv').config();
-
-// // const app = express();
-// // const PORT = process.env.PORT || 3000;
-
-// // // Database connection
-// // const db = mysql.createConnection({
-// //     host: process.env.DB_HOST,
-// //     user: process.env.DB_USER,
-// //     password: process.env.DB_PASSWORD,
-// //     database: process.env.DB_NAME
-// // });
-
-// // db.connect((err) => {
-// //     if (err) {
-// //         console.error('Database connection failed:', err);
-// //         return;
-// //     }
-// //     console.log('Connected to MySQL database');
-// // });
-
-// // // Middleware
-// // app.use(cors());
-// // app.use(express.json());
-
-// // // Simplified login endpoint - only name, userId, password
-// // app.post('/api/auth/login', async (req, res) => {
-// //     try {
-// //         const { name, userId, password } = req.body;
-
-// //         if (!name || !userId || !password) {
-// //             return res.status(400).json({
-// //                 success: false,
-// //                 message: 'Name, User ID and password are required'
-// //             });
-// //         }
-
-// //         // Check if user exists with both employee_id and name
-// //         const checkUserQuery = 'SELECT * FROM users WHERE employee_id = ? AND name = ?';
-
-// //         db.execute(checkUserQuery, [userId, name], async (err, results) => {
-// //             if (err) {
-// //                 console.error('Database error:', err);
-// //                 return res.status(500).json({
-// //                     success: false,
-// //                     message: 'Database connection error'
-// //                 });
-// //             }
-
-// //             if (results.length > 0) {
-// //                 // User exists - verify password
-// //                 const user = results[0];
-
-// //                 try {
-// //                     const isValidPassword = await bcrypt.compare(password, user.password);
-
-// //                     if (!isValidPassword) {
-// //                         return res.status(401).json({
-// //                             success: false,
-// //                             message: 'Invalid name, user ID or password'
-// //                         });
-// //                     }
-
-// //                     // Generate token for existing user
-// //                     const token = jwt.sign(
-// //                         {
-// //                             userId: user.id,
-// //                             employeeId: user.employee_id,
-// //                             name: user.name
-// //                         },
-// //                         process.env.JWT_SECRET,
-// //                         { expiresIn: '24h' }
-// //                     );
-
-// //                     console.log(`Existing user logged in: ${user.name} (${user.employee_id})`);
-
-// //                     res.json({
-// //                         success: true,
-// //                         message: 'Login successful',
-// //                         data: {
-// //                             token,
-// //                             user: {
-// //                                 id: user.id,
-// //                                 name: user.name,
-// //                                 employeeId: user.employee_id
-// //                             }
-// //                         }
-// //                     });
-// //                 } catch (bcryptError) {
-// //                     console.error('Password comparison error:', bcryptError);
-// //                     return res.status(500).json({
-// //                         success: false,
-// //                         message: 'Authentication error'
-// //                     });
-// //                 }
-// //             } else {
-// //                 // User doesn't exist - create new user (simplified)
-// //                 try {
-// //                     const hashedPassword = await bcrypt.hash(password, 10);
-
-// //                     const insertUserQuery = `
-// //                         INSERT INTO users (employee_id, name, password, created_at) 
-// //                         VALUES (?, ?, ?, NOW())
-// //                     `;
-
-// //                     db.execute(insertUserQuery, [userId, name.trim(), hashedPassword],
-// //                         (insertErr, insertResult) => {
-// //                             if (insertErr) {
-// //                                 console.error('Error creating user:', insertErr);
-// //                                 return res.status(500).json({
-// //                                     success: false,
-// //                                     message: 'Failed to create user account'
-// //                                 });
-// //                             }
-
-// //                             // Generate token for new user
-// //                             const newUserId = insertResult.insertId;
-// //                             const token = jwt.sign(
-// //                                 {
-// //                                     userId: newUserId,
-// //                                     employeeId: userId,
-// //                                     name: name.trim()
-// //                                 },
-// //                                 process.env.JWT_SECRET,
-// //                                 { expiresIn: '24h' }
-// //                             );
-
-// //                             console.log(`New user created and logged in: ${name.trim()} (${userId})`);
-
-// //                             res.json({
-// //                                 success: true,
-// //                                 message: 'Account created and login successful',
-// //                                 data: {
-// //                                     token,
-// //                                     user: {
-// //                                         id: newUserId,
-// //                                         name: name.trim(),
-// //                                         employeeId: userId
-// //                                     }
-// //                                 }
-// //                             });
-// //                         });
-// //                 } catch (hashError) {
-// //                     console.error('Password hashing error:', hashError);
-// //                     return res.status(500).json({
-// //                         success: false,
-// //                         message: 'Failed to process password'
-// //                     });
-// //                 }
-// //             }
-// //         });
-// //     } catch (error) {
-// //         console.error('Login error:', error);
-// //         res.status(500).json({
-// //             success: false,
-// //             message: 'Internal server error'
-// //         });
-// //     }
-// // });
-
-// // // Get user profile endpoint (simplified)
-// // app.get('/api/user/profile', authenticateToken, (req, res) => {
-// //     const userId = req.user.userId;
-
-// //     const query = 'SELECT id, employee_id, name FROM users WHERE id = ?';
-
-// //     db.execute(query, [userId], (err, results) => {
-// //         if (err) {
-// //             return res.status(500).json({
-// //                 success: false,
-// //                 message: 'Database error'
-// //             });
-// //         }
-
-// //         if (results.length === 0) {
-// //             return res.status(404).json({
-// //                 success: false,
-// //                 message: 'User not found'
-// //             });
-// //         }
-
-// //         const user = results[0];
-// //         res.json({
-// //             success: true,
-// //             data: {
-// //                 id: user.id,
-// //                 name: user.name,
-// //                 employeeId: user.employee_id
-// //             }
-// //         });
-// //     });
-// // });
-
-// // // JWT middleware
-// // function authenticateToken(req, res, next) {
-// //     const authHeader = req.headers['authorization'];
-// //     const token = authHeader && authHeader.split(' ')[1];
-
-// //     if (!token) {
-// //         return res.status(401).json({
-// //             success: false,
-// //             message: 'Access token required'
-// //         });
-// //     }
-
-// //     jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
-// //         if (err) {
-// //             return res.status(403).json({
-// //                 success: false,
-// //                 message: 'Invalid or expired token'
-// //             });
-// //         }
-// //         req.user = user;
-// //         next();
-// //     });
-// // }
-
-// // // Health check endpoint
-// // app.get('/', (req, res) => {
-// //     res.json({ message: 'Simplified Field Management API is running!' });
-// // });
-
-// // app.listen(PORT, () => {
-// //     console.log(`Server running on port ${PORT}`);
-// // });
-
-
-
-// const express = require('express');
-// const cors = require('cors');
-// const bcrypt = require('bcryptjs');
-// const jwt = require('jsonwebtoken');
-// const mysql = require('mysql2');
-// const multer = require('multer');
-// const path = require('path');
-// const fs = require('fs');
-// require('dotenv').config();
-
-// const app = express();
-// const PORT = process.env.PORT || 3000;
-
-// // Create uploads directory if it doesn't exist
-// const uploadsDir = path.join(__dirname, 'uploads', 'profiles');
-// if (!fs.existsSync(uploadsDir)) {
-//     fs.mkdirSync(uploadsDir, { recursive: true });
-// }
-
-// // Configure multer for file uploads
-// const storage = multer.diskStorage({
-//     destination: (req, file, cb) => {
-//         cb(null, uploadsDir);
-//     },
-//     filename: (req, file, cb) => {
-//         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-//         cb(null, 'profile-' + uniqueSuffix + path.extname(file.originalname));
-//     }
-// });
-
-// const upload = multer({
-//     storage: storage,
-//     limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
-//     fileFilter: (req, file, cb) => {
-//         const filetypes = /jpeg|jpg|png/;
-//         const mimetype = filetypes.test(file.mimetype);
-//         const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
-
-//         if (mimetype && extname) {
-//             return cb(null, true);
-//         }
-//         cb(new Error('Only image files are allowed!'));
-//     }
-// });
-
-// // Database connection
-// const db = mysql.createConnection({
-//     host: process.env.DB_HOST,
-//     user: process.env.DB_USER,
-//     password: process.env.DB_PASSWORD,
-//     database: process.env.DB_NAME
-// });
-
-// db.connect((err) => {
-//     if (err) {
-//         console.error('Database connection failed:', err);
-//         return;
-//     }
-//     console.log('Connected to MySQL database');
-// });
-
-// // Middleware
-// app.use(cors());
-// app.use(express.json());
-// app.use('/uploads', express.static('uploads'));
-
-// // Function to generate next Employee ID
-// function generateEmployeeId(callback) {
-//     const query = 'SELECT employee_id FROM users ORDER BY id DESC LIMIT 1';
-
-//     db.execute(query, (err, results) => {
-//         if (err) {
-//             callback(err, null);
-//             return;
-//         }
-
-//         let nextNumber = 1;
-
-//         if (results.length > 0 && results[0].employee_id) {
-//             const lastId = results[0].employee_id;
-//             const lastNumber = parseInt(lastId.replace('EMP', ''));
-//             nextNumber = lastNumber + 1;
-//         }
-
-//         const newEmployeeId = 'EMP' + String(nextNumber).padStart(3, '0');
-//         callback(null, newEmployeeId);
-//     });
-// }
-
-// // Signup endpoint
-// app.post('/api/auth/signup', upload.single('profileImage'), async (req, res) => {
-//     try {
-//         const { name, email, phone, zone, role, password } = req.body;
-
-//         console.log('Signup request received:', { name, email, phone, zone, role });
-
-//         // Validate required fields
-//         if (!name || !email || !password) {
-//             return res.status(400).json({
-//                 success: false,
-//                 message: 'Name, email, and password are required'
-//             });
-//         }
-
-//         // Check if email already exists
-//         const checkEmailQuery = 'SELECT * FROM users WHERE email = ?';
-//         db.execute(checkEmailQuery, [email], async (err, results) => {
-//             if (err) {
-//                 console.error('Database error:', err);
-//                 return res.status(500).json({
-//                     success: false,
-//                     message: 'Database error'
-//                 });
-//             }
-
-//             if (results.length > 0) {
-//                 return res.status(400).json({
-//                     success: false,
-//                     message: 'Email already exists'
-//                 });
-//             }
-
-//             // Generate Employee ID
-//             generateEmployeeId(async (empErr, employeeId) => {
-//                 if (empErr) {
-//                     console.error('Error generating employee ID:', empErr);
-//                     return res.status(500).json({
-//                         success: false,
-//                         message: 'Failed to generate employee ID'
-//                     });
-//                 }
-
-//                 try {
-//                     // Hash password
-//                     const hashedPassword = await bcrypt.hash(password, 10);
-
-//                     // Get profile image path if uploaded
-//                     const profileImagePath = req.file ? `/uploads/profiles/${req.file.filename}` : null;
-
-//                     // Insert new user
-//                     const insertQuery = `
-//                         INSERT INTO users (employee_id, name, email, phone, password, role, zone, profile_image, created_at) 
-//                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())
-//                     `;
-
-//                     const values = [
-//                         employeeId,
-//                         name.trim(),
-//                         email.trim(),
-//                         phone || null,
-//                         hashedPassword,
-//                         role || 'field_executive',
-//                         zone || null,
-//                         profileImagePath
-//                     ];
-
-//                     db.execute(insertQuery, values, (insertErr, insertResult) => {
-//                         if (insertErr) {
-//                             console.error('Error creating user:', insertErr);
-//                             return res.status(500).json({
-//                                 success: false,
-//                                 message: 'Failed to create account'
-//                             });
-//                         }
-
-//                         console.log(`✅ New user created: ${name} (${employeeId})`);
-
-//                         res.status(201).json({
-//                             success: true,
-//                             message: 'Account created successfully',
-//                             data: {
-//                                 id: insertResult.insertId,
-//                                 name: name.trim(),
-//                                 employeeId: employeeId,
-//                                 email: email.trim(),
-//                                 phone: phone || null,
-//                                 role: role || 'field_executive',
-//                                 zone: zone || null
-//                             }
-//                         });
-//                     });
-//                 } catch (hashError) {
-//                     console.error('Password hashing error:', hashError);
-//                     return res.status(500).json({
-//                         success: false,
-//                         message: 'Failed to process password'
-//                     });
-//                 }
-//             });
-//         });
-//     } catch (error) {
-//         console.error('Signup error:', error);
-//         res.status(500).json({
-//             success: false,
-//             message: 'Internal server error'
-//         });
-//     }
-// });
-
-// // Login endpoint
-// app.post('/api/auth/login', async (req, res) => {
-//     try {
-//         const { name, userId, password } = req.body;
-
-//         if (!name || !userId || !password) {
-//             return res.status(400).json({
-//                 success: false,
-//                 message: 'Name, User ID and password are required'
-//             });
-//         }
-
-//         const checkUserQuery = 'SELECT * FROM users WHERE employee_id = ? AND name = ?';
-
-//         db.execute(checkUserQuery, [userId, name], async (err, results) => {
-//             if (err) {
-//                 console.error('Database error:', err);
-//                 return res.status(500).json({
-//                     success: false,
-//                     message: 'Database connection error'
-//                 });
-//             }
-
-//             if (results.length > 0) {
-//                 const user = results[0];
-
-//                 try {
-//                     const isValidPassword = await bcrypt.compare(password, user.password);
-
-//                     if (!isValidPassword) {
-//                         return res.status(401).json({
-//                             success: false,
-//                             message: 'Invalid name, user ID or password'
-//                         });
-//                     }
-
-//                     const token = jwt.sign(
-//                         {
-//                             userId: user.id,
-//                             employeeId: user.employee_id,
-//                             name: user.name
-//                         },
-//                         process.env.JWT_SECRET,
-//                         { expiresIn: '24h' }
-//                     );
-
-//                     console.log(`✅ User logged in: ${user.name} (${user.employee_id})`);
-
-//                     res.json({
-//                         success: true,
-//                         message: 'Login successful',
-//                         data: {
-//                             token,
-//                             user: {
-//                                 id: user.id,
-//                                 name: user.name,
-//                                 employeeId: user.employee_id,
-//                                 email: user.email,
-//                                 phone: user.phone,
-//                                 role: user.role,
-//                                 zone: user.zone
-//                             }
-//                         }
-//                     });
-//                 } catch (bcryptError) {
-//                     console.error('Password comparison error:', bcryptError);
-//                     return res.status(500).json({
-//                         success: false,
-//                         message: 'Authentication error'
-//                     });
-//                 }
-//             } else {
-//                 return res.status(401).json({
-//                     success: false,
-//                     message: 'Invalid name, user ID or password'
-//                 });
-//             }
-//         });
-//     } catch (error) {
-//         console.error('Login error:', error);
-//         res.status(500).json({
-//             success: false,
-//             message: 'Internal server error'
-//         });
-//     }
-// });
-
-// // Get user profile endpoint
-// app.get('/api/user/profile', authenticateToken, (req, res) => {
-//     const userId = req.user.userId;
-
-//     const query = 'SELECT id, employee_id, name, email, phone, role, zone, profile_image FROM users WHERE id = ?';
-
-//     db.execute(query, [userId], (err, results) => {
-//         if (err) {
-//             return res.status(500).json({
-//                 success: false,
-//                 message: 'Database error'
-//             });
-//         }
-
-//         if (results.length === 0) {
-//             return res.status(404).json({
-//                 success: false,
-//                 message: 'User not found'
-//             });
-//         }
-
-//         const user = results[0];
-//         res.json({
-//             success: true,
-//             data: {
-//                 id: user.id,
-//                 name: user.name,
-//                 employeeId: user.employee_id,
-//                 email: user.email,
-//                 phone: user.phone,
-//                 role: user.role,
-//                 zone: user.zone,
-//                 profileImage: user.profile_image
-//             }
-//         });
-//     });
-// });
-
-// // JWT middleware
-// function authenticateToken(req, res, next) {
-//     const authHeader = req.headers['authorization'];
-//     const token = authHeader && authHeader.split(' ')[1];
-
-//     if (!token) {
-//         return res.status(401).json({
-//             success: false,
-//             message: 'Access token required'
-//         });
-//     }
-
-//     jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
-//         if (err) {
-//             return res.status(403).json({
-//                 success: false,
-//                 message: 'Invalid or expired token'
-//             });
-//         }
-//         req.user = user;
-//         next();
-//     });
-// }
-
-// // Health check endpoint
-// app.get('/', (req, res) => {
-//     res.json({
-//         message: 'Field Management API is running!',
-//         timestamp: new Date().toISOString()
-//     });
-// });
-
-// // Error handling middleware
-// app.use((err, req, res, next) => {
-//     console.error('Error:', err);
-//     res.status(500).json({
-//         success: false,
-//         message: err.message || 'Internal server error'
-//     });
-// });
-
-// app.listen(PORT, () => {
-//     console.log(`🚀 Server running on port ${PORT}`);
-//     console.log(`📍 API endpoint: http://localhost:${PORT}/api`);
-// });
-
 const express = require('express');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
@@ -646,20 +43,28 @@ const upload = multer({
     }
 });
 
-// Database connection
-const db = mysql.createConnection({
+// Database connection with connection pool
+const db = mysql.createPool({
     host: process.env.DB_HOST,
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME
+    database: process.env.DB_NAME,
+    port: process.env.DB_PORT || 3306,
+    waitForConnections: true,
+    connectionLimit: 10,
+    queueLimit: 0
 });
 
-db.connect((err) => {
+// Test database connection
+db.getConnection((err, connection) => {
     if (err) {
-        console.error('Database connection failed:', err);
-        return;
+        console.error('❌ Database connection failed:', err);
+        console.error('❌ Error Code:', err.code);
+        console.error('❌ Error Message:', err.message);
+        process.exit(1);
     }
     console.log('✅ Connected to MySQL database');
+    connection.release();
 });
 
 // Middleware
@@ -673,6 +78,7 @@ function generateEmployeeId(callback) {
 
     db.execute(query, (err, results) => {
         if (err) {
+            console.error('❌ Error in generateEmployeeId:', err);
             callback(err, null);
             return;
         }
@@ -681,66 +87,113 @@ function generateEmployeeId(callback) {
 
         if (results.length > 0 && results[0].employee_id) {
             const lastId = results[0].employee_id;
-            const lastNumber = parseInt(lastId.replace('EMP', ''));
-            nextNumber = lastNumber + 1;
+            const match = lastId.match(/^EMP(\d+)$/);
+            if (match) {
+                const lastNumber = parseInt(match[1]);
+                nextNumber = lastNumber + 1;
+            }
         }
 
         const newEmployeeId = 'EMP' + String(nextNumber).padStart(3, '0');
+        console.log('✅ Generated Employee ID:', newEmployeeId);
         callback(null, newEmployeeId);
     });
 }
 
-// Signup endpoint
+// ==================== AUTHENTICATION ENDPOINTS ====================
+
+// Signup endpoint - WITH ENHANCED ERROR LOGGING
 app.post('/api/auth/signup', upload.single('profileImage'), async (req, res) => {
     try {
         const { name, email, phone, zone, role, password } = req.body;
 
-        console.log('📝 Signup request received:', { name, email, phone, zone, role });
+        console.log('='.repeat(60));
+        console.log('📝 SIGNUP REQUEST RECEIVED');
+        console.log('='.repeat(60));
+        console.log('Name:', name);
+        console.log('Email:', email);
+        console.log('Phone:', phone);
+        console.log('Zone:', zone);
+        console.log('Role:', role);
+        console.log('Password:', password ? '[PROVIDED]' : '[MISSING]');
+        console.log('Profile Image:', req.file ? req.file.filename : 'None');
+        console.log('='.repeat(60));
 
         // Validate required fields
         if (!name || !email || !password) {
+            console.log('❌ Validation failed: Missing required fields');
             return res.status(400).json({
                 success: false,
                 message: 'Name, email, and password are required'
             });
         }
 
-        // Check if email already exists in profile table
+        // Check if email already exists in profile table - WITH ENHANCED ERROR LOGGING
+        console.log('🔍 Step 1: Checking if email exists...');
         const checkEmailQuery = 'SELECT * FROM profile WHERE email = ?';
+
         db.execute(checkEmailQuery, [email], async (err, results) => {
             if (err) {
-                console.error('❌ Database error:', err);
+                console.error('='.repeat(60));
+                console.error('❌ DATABASE ERROR AT EMAIL CHECK');
+                console.error('='.repeat(60));
+                console.error('Full Error Object:', err);
+                console.error('SQL Message:', err.sqlMessage);
+                console.error('SQL Code:', err.code);
+                console.error('SQL State:', err.sqlState);
+                console.error('SQL Query:', checkEmailQuery);
+                console.error('SQL Params:', [email]);
+                console.error('='.repeat(60));
+
                 return res.status(500).json({
                     success: false,
-                    message: 'Database error'
+                    message: err.sqlMessage || err.message || 'Database error during email check',
+                    error_code: err.code,
+                    error_state: err.sqlState,
+                    step: 'email_check'
                 });
             }
 
+            console.log('✅ Email check query executed successfully');
+            console.log('📊 Results found:', results.length);
+
             if (results.length > 0) {
+                console.log('❌ Email already exists in database');
                 return res.status(400).json({
                     success: false,
                     message: 'Email already exists'
                 });
             }
 
+            console.log('✅ Email is available');
+
             // Generate Employee ID
+            console.log('🔍 Step 2: Generating Employee ID...');
             generateEmployeeId(async (empErr, employeeId) => {
                 if (empErr) {
                     console.error('❌ Error generating employee ID:', empErr);
                     return res.status(500).json({
                         success: false,
-                        message: 'Failed to generate employee ID'
+                        message: 'Failed to generate employee ID',
+                        error: empErr.message,
+                        step: 'generate_employee_id'
                     });
                 }
 
+                console.log('✅ Employee ID generated:', employeeId);
+
                 try {
                     // Hash password
+                    console.log('🔍 Step 3: Hashing password...');
                     const hashedPassword = await bcrypt.hash(password, 10);
+                    console.log('✅ Password hashed successfully');
 
                     // Get profile image path if uploaded
                     const profileImagePath = req.file ? `/uploads/profiles/${req.file.filename}` : null;
+                    console.log('📸 Profile image path:', profileImagePath || 'None');
 
                     // Insert into users table first
+                    console.log('🔍 Step 4: Inserting into users table...');
                     const insertUserQuery = `
                         INSERT INTO users (employee_id, name, password, created_at) 
                         VALUES (?, ?, ?, NOW())
@@ -748,16 +201,29 @@ app.post('/api/auth/signup', upload.single('profileImage'), async (req, res) => 
 
                     db.execute(insertUserQuery, [employeeId, name.trim(), hashedPassword], (userErr, userResult) => {
                         if (userErr) {
-                            console.error('❌ Error creating user:', userErr);
+                            console.error('='.repeat(60));
+                            console.error('❌ DATABASE ERROR AT USER INSERTION');
+                            console.error('='.repeat(60));
+                            console.error('Full Error Object:', userErr);
+                            console.error('SQL Message:', userErr.sqlMessage);
+                            console.error('SQL Code:', userErr.code);
+                            console.error('SQL Query:', insertUserQuery);
+                            console.error('SQL Params:', [employeeId, name.trim(), '[HASHED_PASSWORD]']);
+                            console.error('='.repeat(60));
+
                             return res.status(500).json({
                                 success: false,
-                                message: 'Failed to create account'
+                                message: userErr.sqlMessage || 'Failed to create user account',
+                                error_code: userErr.code,
+                                step: 'user_insertion'
                             });
                         }
 
                         const userId = userResult.insertId;
+                        console.log('✅ User inserted successfully with ID:', userId);
 
                         // Insert into profile table
+                        console.log('🔍 Step 5: Inserting into profile table...');
                         const insertProfileQuery = `
                             INSERT INTO profile (user_id, email, phone, zone, role, profile_image, created_at) 
                             VALUES (?, ?, ?, ?, ?, ?, NOW())
@@ -772,18 +238,54 @@ app.post('/api/auth/signup', upload.single('profileImage'), async (req, res) => 
                             profileImagePath
                         ];
 
+                        console.log('📋 Profile values:', {
+                            user_id: userId,
+                            email: email.trim(),
+                            phone: phone || null,
+                            zone: zone || null,
+                            role: role || 'field_executive',
+                            profile_image: profileImagePath
+                        });
+
                         db.execute(insertProfileQuery, profileValues, (profileErr, profileResult) => {
                             if (profileErr) {
-                                console.error('❌ Error creating profile:', profileErr);
+                                console.error('='.repeat(60));
+                                console.error('❌ DATABASE ERROR AT PROFILE INSERTION');
+                                console.error('='.repeat(60));
+                                console.error('Full Error Object:', profileErr);
+                                console.error('SQL Message:', profileErr.sqlMessage);
+                                console.error('SQL Code:', profileErr.code);
+                                console.error('SQL Query:', insertProfileQuery);
+                                console.error('SQL Params:', profileValues);
+                                console.error('='.repeat(60));
+
                                 // Rollback: Delete the user if profile creation fails
-                                db.execute('DELETE FROM users WHERE id = ?', [userId], () => {});
+                                console.log('🔄 Rolling back user creation...');
+                                db.execute('DELETE FROM users WHERE id = ?', [userId], (rollbackErr) => {
+                                    if (rollbackErr) {
+                                        console.error('❌ Rollback failed:', rollbackErr);
+                                    } else {
+                                        console.log('✅ User rollback completed');
+                                    }
+                                });
+
                                 return res.status(500).json({
                                     success: false,
-                                    message: 'Failed to create profile'
+                                    message: profileErr.sqlMessage || 'Failed to create profile',
+                                    error_code: profileErr.code,
+                                    step: 'profile_insertion'
                                 });
                             }
 
-                            console.log(`✅ New user created: ${name} (${employeeId})`);
+                            console.log('✅ Profile inserted successfully');
+                            console.log('='.repeat(60));
+                            console.log('🎉 SIGNUP COMPLETED SUCCESSFULLY');
+                            console.log('='.repeat(60));
+                            console.log('User ID:', userId);
+                            console.log('Employee ID:', employeeId);
+                            console.log('Name:', name.trim());
+                            console.log('Email:', email.trim());
+                            console.log('='.repeat(60));
 
                             res.status(201).json({
                                 success: true,
@@ -804,113 +306,160 @@ app.post('/api/auth/signup', upload.single('profileImage'), async (req, res) => 
                     console.error('❌ Password hashing error:', hashError);
                     return res.status(500).json({
                         success: false,
-                        message: 'Failed to process password'
+                        message: 'Failed to process password',
+                        error: hashError.message,
+                        step: 'password_hashing'
                     });
                 }
             });
         });
     } catch (error) {
-        console.error('❌ Signup error:', error);
+        console.error('='.repeat(60));
+        console.error('❌ UNEXPECTED ERROR IN SIGNUP');
+        console.error('='.repeat(60));
+        console.error('Error:', error);
+        console.error('Stack:', error.stack);
+        console.error('='.repeat(60));
+
         res.status(500).json({
             success: false,
-            message: 'Internal server error'
+            message: 'Internal server error',
+            error: error.message,
+            step: 'unexpected_error'
         });
     }
 });
 
-// Login endpoint
+// Login endpoint - WITH ENHANCED ERROR LOGGING
 app.post('/api/auth/login', async (req, res) => {
     try {
         const { name, userId, password } = req.body;
 
-        console.log('🔐 Login attempt:', { name, userId });
+        console.log('='.repeat(60));
+        console.log('🔐 LOGIN REQUEST RECEIVED');
+        console.log('='.repeat(60));
+        console.log('Name:', name);
+        console.log('User ID:', userId);
+        console.log('Password:', password ? '[PROVIDED]' : '[MISSING]');
+        console.log('='.repeat(60));
 
         if (!name || !userId || !password) {
+            console.log('❌ Validation failed: Missing credentials');
             return res.status(400).json({
                 success: false,
                 message: 'Name, User ID and password are required'
             });
         }
 
+        console.log('🔍 Step 1: Checking user credentials...');
         const checkUserQuery = 'SELECT * FROM users WHERE employee_id = ? AND name = ?';
 
         db.execute(checkUserQuery, [userId, name], async (err, results) => {
             if (err) {
-                console.error('❌ Database error:', err);
+                console.error('='.repeat(60));
+                console.error('❌ DATABASE ERROR AT LOGIN');
+                console.error('='.repeat(60));
+                console.error('SQL Message:', err.sqlMessage);
+                console.error('SQL Code:', err.code);
+                console.error('='.repeat(60));
+
                 return res.status(500).json({
                     success: false,
-                    message: 'Database connection error'
+                    message: err.sqlMessage || 'Database connection error',
+                    error_code: err.code
                 });
             }
 
-            if (results.length > 0) {
-                const user = results[0];
+            console.log('✅ User query executed, results found:', results.length);
 
-                try {
-                    const isValidPassword = await bcrypt.compare(password, user.password);
-
-                    if (!isValidPassword) {
-                        console.log('❌ Invalid password for:', name);
-                        return res.status(401).json({
-                            success: false,
-                            message: 'Invalid name, user ID or password'
-                        });
-                    }
-
-                    // Fetch profile data
-                    const profileQuery = 'SELECT * FROM profile WHERE user_id = ?';
-                    db.execute(profileQuery, [user.id], (profileErr, profileResults) => {
-                        let profileData = {};
-                        
-                        if (!profileErr && profileResults.length > 0) {
-                            const profile = profileResults[0];
-                            profileData = {
-                                email: profile.email,
-                                phone: profile.phone,
-                                role: profile.role,
-                                zone: profile.zone,
-                                profileImage: profile.profile_image
-                            };
-                        }
-
-                        const token = jwt.sign(
-                            {
-                                userId: user.id,
-                                employeeId: user.employee_id,
-                                name: user.name
-                            },
-                            process.env.JWT_SECRET,
-                            { expiresIn: '24h' }
-                        );
-
-                        console.log(`✅ User logged in: ${user.name} (${user.employee_id})`);
-
-                        res.json({
-                            success: true,
-                            message: 'Login successful',
-                            data: {
-                                token,
-                                user: {
-                                    id: user.id,
-                                    name: user.name,
-                                    employeeId: user.employee_id,
-                                    ...profileData
-                                }
-                            }
-                        });
-                    });
-                } catch (bcryptError) {
-                    console.error('❌ Password comparison error:', bcryptError);
-                    return res.status(500).json({
-                        success: false,
-                        message: 'Authentication error'
-                    });
-                }
-            } else {
-                console.log('❌ User not found:', { name, userId });
+            if (results.length === 0) {
+                console.log('❌ User not found with provided credentials');
                 return res.status(401).json({
                     success: false,
                     message: 'Invalid name, user ID or password'
+                });
+            }
+
+            const user = results[0];
+            console.log('✅ User found:', user.name, '(' + user.employee_id + ')');
+
+            try {
+                console.log('🔍 Step 2: Verifying password...');
+                const isValidPassword = await bcrypt.compare(password, user.password);
+
+                if (!isValidPassword) {
+                    console.log('❌ Invalid password');
+                    return res.status(401).json({
+                        success: false,
+                        message: 'Invalid name, user ID or password'
+                    });
+                }
+
+                console.log('✅ Password verified successfully');
+
+                // Fetch profile data
+                console.log('🔍 Step 3: Fetching profile data...');
+                const profileQuery = 'SELECT * FROM profile WHERE user_id = ?';
+
+                db.execute(profileQuery, [user.id], (profileErr, profileResults) => {
+                    if (profileErr) {
+                        console.error('⚠️ Warning: Could not fetch profile:', profileErr.sqlMessage);
+                    }
+
+                    let profileData = {};
+
+                    if (!profileErr && profileResults.length > 0) {
+                        const profile = profileResults[0];
+                        profileData = {
+                            email: profile.email,
+                            phone: profile.phone,
+                            role: profile.role,
+                            zone: profile.zone,
+                            profileImage: profile.profile_image
+                        };
+                        console.log('✅ Profile data fetched successfully');
+                    } else {
+                        console.log('⚠️ No profile data found for user');
+                    }
+
+                    console.log('🔍 Step 4: Generating JWT token...');
+                    const token = jwt.sign(
+                        {
+                            userId: user.id,
+                            employeeId: user.employee_id,
+                            name: user.name
+                        },
+                        process.env.JWT_SECRET,
+                        { expiresIn: '24h' }
+                    );
+
+                    console.log('✅ JWT token generated');
+                    console.log('='.repeat(60));
+                    console.log('🎉 LOGIN SUCCESSFUL');
+                    console.log('='.repeat(60));
+                    console.log('User:', user.name);
+                    console.log('Employee ID:', user.employee_id);
+                    console.log('='.repeat(60));
+
+                    res.json({
+                        success: true,
+                        message: 'Login successful',
+                        data: {
+                            token,
+                            user: {
+                                id: user.id,
+                                name: user.name,
+                                employeeId: user.employee_id,
+                                ...profileData
+                            }
+                        }
+                    });
+                });
+            } catch (bcryptError) {
+                console.error('❌ Password comparison error:', bcryptError);
+                return res.status(500).json({
+                    success: false,
+                    message: 'Authentication error'
                 });
             }
         });
@@ -923,9 +472,13 @@ app.post('/api/auth/login', async (req, res) => {
     }
 });
 
+// ==================== USER ENDPOINTS ====================
+
 // Get user profile endpoint
 app.get('/api/user/profile', authenticateToken, (req, res) => {
     const userId = req.user.userId;
+
+    console.log('📋 Fetching profile for user ID:', userId);
 
     const query = `
         SELECT u.id, u.employee_id, u.name, p.email, p.phone, p.role, p.zone, p.profile_image 
@@ -951,6 +504,8 @@ app.get('/api/user/profile', authenticateToken, (req, res) => {
         }
 
         const user = results[0];
+        console.log('✅ Profile fetched successfully');
+
         res.json({
             success: true,
             data: {
@@ -1041,6 +596,8 @@ app.put('/api/user/profile', authenticateToken, upload.single('profileImage'), a
     }
 });
 
+// ==================== TASKS ENDPOINTS ====================
+
 // Get tasks endpoint
 app.get('/api/tasks', authenticateToken, (req, res) => {
     const userId = req.user.userId;
@@ -1093,6 +650,8 @@ app.put('/api/tasks/:taskId/status', authenticateToken, (req, res) => {
         });
     });
 });
+
+// ==================== LEAVES ENDPOINTS ====================
 
 // Apply leave endpoint
 app.post('/api/leaves', authenticateToken, (req, res) => {
@@ -1153,6 +712,8 @@ app.get('/api/leaves', authenticateToken, (req, res) => {
     });
 });
 
+// ==================== MIDDLEWARE ====================
+
 // JWT middleware
 function authenticateToken(req, res, next) {
     const authHeader = req.headers['authorization'];
@@ -1177,11 +738,14 @@ function authenticateToken(req, res, next) {
     });
 }
 
+// ==================== HEALTH CHECK & DEBUG ====================
+
 // Health check endpoint
 app.get('/', (req, res) => {
     res.json({
         message: 'Field Management API is running! 🚀',
         timestamp: new Date().toISOString(),
+        version: '1.0.0',
         endpoints: {
             auth: {
                 signup: 'POST /api/auth/signup',
@@ -1203,9 +767,57 @@ app.get('/', (req, res) => {
     });
 });
 
+// Database test endpoint
+app.get('/api/debug/db-test', (req, res) => {
+    console.log('🔍 Testing database connection...');
+
+    db.execute('SELECT 1 + 1 AS result', (err, results) => {
+        if (err) {
+            console.error('❌ Database test failed:', err);
+            return res.status(500).json({
+                success: false,
+                message: 'Database connection failed',
+                error: err.message
+            });
+        }
+
+        console.log('✅ Database test successful');
+        res.json({
+            success: true,
+            message: 'Database connection working',
+            result: results[0].result
+        });
+    });
+});
+
+// Check tables endpoint
+app.get('/api/debug/check-tables', (req, res) => {
+    console.log('🔍 Checking database tables...');
+
+    db.execute('SHOW TABLES', (err, results) => {
+        if (err) {
+            console.error('❌ Error checking tables:', err);
+            return res.status(500).json({
+                success: false,
+                message: 'Failed to check tables',
+                error: err.message
+            });
+        }
+
+        const tables = results.map(row => Object.values(row)[0]);
+        console.log('✅ Tables found:', tables);
+
+        res.json({
+            success: true,
+            tables: tables,
+            count: tables.length
+        });
+    });
+});
+
 // Error handling middleware
 app.use((err, req, res, next) => {
-    console.error('❌ Error:', err);
+    console.error('❌ Unhandled Error:', err);
     res.status(500).json({
         success: false,
         message: err.message || 'Internal server error'
@@ -1225,10 +837,18 @@ process.on('SIGINT', () => {
     });
 });
 
-app.listen(PORT, () => {
-    console.log('='.repeat(50));
-    console.log(`🚀 Server running on port ${PORT}`);
-    console.log(`📍 API endpoint: http://localhost:${PORT}/api`);
-    console.log(`🏥 Health check: http://localhost:${PORT}/`);
-    console.log('='.repeat(50));
+// Start server
+app.listen(PORT, '0.0.0.0', () => {
+    console.log('='.repeat(60));
+    console.log('🚀 FIELD MANAGEMENT API SERVER STARTED');
+    console.log('='.repeat(60));
+    console.log(`📍 Port: ${PORT}`);
+    console.log(`📍 Local: http://localhost:${PORT}`);
+    console.log(`📍 Network: http://16.176.206.156:${PORT}`);
+    console.log(`🏥 Health Check: http://16.176.206.156:${PORT}/`);
+    console.log(`🔍 DB Test: http://16.176.206.156:${PORT}/api/debug/db-test`);
+    console.log(`📊 Check Tables: http://16.176.206.156:${PORT}/api/debug/check-tables`);
+    console.log('='.repeat(60));
+    console.log('✅ Server is ready to accept connections');
+    console.log('='.repeat(60));
 });
