@@ -102,8 +102,10 @@ function generateEmployeeId(callback) {
 
 // ==================== AUTHENTICATION ENDPOINTS ====================
 
-// Signup endpoint - WITH ENHANCED ERROR LOGGING
+// Signup endpoint - FIXED to prevent ERR_HTTP_HEADERS_SENT
 app.post('/api/auth/signup', upload.single('profileImage'), async (req, res) => {
+    let responseSent = false; // Flag to track if response has been sent
+
     try {
         const { name, email, phone, zone, role, password } = req.body;
 
@@ -122,17 +124,20 @@ app.post('/api/auth/signup', upload.single('profileImage'), async (req, res) => 
         // Validate required fields
         if (!name || !email || !password) {
             console.log('❌ Validation failed: Missing required fields');
+            responseSent = true;
             return res.status(400).json({
                 success: false,
                 message: 'Name, email, and password are required'
             });
         }
 
-        // Check if email already exists in profile table - WITH ENHANCED ERROR LOGGING
+        // Check if email already exists in profile table
         console.log('🔍 Step 1: Checking if email exists...');
         const checkEmailQuery = 'SELECT * FROM profile WHERE email = ?';
 
         db.execute(checkEmailQuery, [email], async (err, results) => {
+            if (responseSent) return; // Prevent multiple responses
+
             if (err) {
                 console.error('='.repeat(60));
                 console.error('❌ DATABASE ERROR AT EMAIL CHECK');
@@ -145,6 +150,7 @@ app.post('/api/auth/signup', upload.single('profileImage'), async (req, res) => 
                 console.error('SQL Params:', [email]);
                 console.error('='.repeat(60));
 
+                responseSent = true;
                 return res.status(500).json({
                     success: false,
                     message: err.sqlMessage || err.message || 'Database error during email check',
@@ -159,6 +165,7 @@ app.post('/api/auth/signup', upload.single('profileImage'), async (req, res) => 
 
             if (results.length > 0) {
                 console.log('❌ Email already exists in database');
+                responseSent = true;
                 return res.status(400).json({
                     success: false,
                     message: 'Email already exists'
@@ -170,8 +177,11 @@ app.post('/api/auth/signup', upload.single('profileImage'), async (req, res) => 
             // Generate Employee ID
             console.log('🔍 Step 2: Generating Employee ID...');
             generateEmployeeId(async (empErr, employeeId) => {
+                if (responseSent) return; // Prevent multiple responses
+
                 if (empErr) {
                     console.error('❌ Error generating employee ID:', empErr);
+                    responseSent = true;
                     return res.status(500).json({
                         success: false,
                         message: 'Failed to generate employee ID',
@@ -200,6 +210,8 @@ app.post('/api/auth/signup', upload.single('profileImage'), async (req, res) => 
                     `;
 
                     db.execute(insertUserQuery, [employeeId, name.trim(), hashedPassword], (userErr, userResult) => {
+                        if (responseSent) return; // Prevent multiple responses
+
                         if (userErr) {
                             console.error('='.repeat(60));
                             console.error('❌ DATABASE ERROR AT USER INSERTION');
@@ -211,6 +223,7 @@ app.post('/api/auth/signup', upload.single('profileImage'), async (req, res) => 
                             console.error('SQL Params:', [employeeId, name.trim(), '[HASHED_PASSWORD]']);
                             console.error('='.repeat(60));
 
+                            responseSent = true;
                             return res.status(500).json({
                                 success: false,
                                 message: userErr.sqlMessage || 'Failed to create user account',
@@ -248,6 +261,8 @@ app.post('/api/auth/signup', upload.single('profileImage'), async (req, res) => 
                         });
 
                         db.execute(insertProfileQuery, profileValues, (profileErr, profileResult) => {
+                            if (responseSent) return; // Prevent multiple responses
+
                             if (profileErr) {
                                 console.error('='.repeat(60));
                                 console.error('❌ DATABASE ERROR AT PROFILE INSERTION');
@@ -269,6 +284,7 @@ app.post('/api/auth/signup', upload.single('profileImage'), async (req, res) => 
                                     }
                                 });
 
+                                responseSent = true;
                                 return res.status(500).json({
                                     success: false,
                                     message: profileErr.sqlMessage || 'Failed to create profile',
@@ -287,6 +303,7 @@ app.post('/api/auth/signup', upload.single('profileImage'), async (req, res) => 
                             console.log('Email:', email.trim());
                             console.log('='.repeat(60));
 
+                            responseSent = true;
                             res.status(201).json({
                                 success: true,
                                 message: 'Account created successfully',
@@ -303,7 +320,9 @@ app.post('/api/auth/signup', upload.single('profileImage'), async (req, res) => 
                         });
                     });
                 } catch (hashError) {
+                    if (responseSent) return;
                     console.error('❌ Password hashing error:', hashError);
+                    responseSent = true;
                     return res.status(500).json({
                         success: false,
                         message: 'Failed to process password',
@@ -314,6 +333,7 @@ app.post('/api/auth/signup', upload.single('profileImage'), async (req, res) => 
             });
         });
     } catch (error) {
+        if (responseSent) return;
         console.error('='.repeat(60));
         console.error('❌ UNEXPECTED ERROR IN SIGNUP');
         console.error('='.repeat(60));
@@ -321,6 +341,7 @@ app.post('/api/auth/signup', upload.single('profileImage'), async (req, res) => 
         console.error('Stack:', error.stack);
         console.error('='.repeat(60));
 
+        responseSent = true;
         res.status(500).json({
             success: false,
             message: 'Internal server error',
@@ -332,11 +353,13 @@ app.post('/api/auth/signup', upload.single('profileImage'), async (req, res) => 
 
 // Login endpoint - WITH ENHANCED ERROR LOGGING
 app.post('/api/auth/login', async (req, res) => {
+    let responseSent = false;
+
     try {
         const { name, userId, password } = req.body;
 
         console.log('='.repeat(60));
-        console.log('🔐 LOGIN REQUEST RECEIVED');
+        console.log('🔍 LOGIN REQUEST RECEIVED');
         console.log('='.repeat(60));
         console.log('Name:', name);
         console.log('User ID:', userId);
@@ -345,6 +368,7 @@ app.post('/api/auth/login', async (req, res) => {
 
         if (!name || !userId || !password) {
             console.log('❌ Validation failed: Missing credentials');
+            responseSent = true;
             return res.status(400).json({
                 success: false,
                 message: 'Name, User ID and password are required'
@@ -355,6 +379,8 @@ app.post('/api/auth/login', async (req, res) => {
         const checkUserQuery = 'SELECT * FROM users WHERE employee_id = ? AND name = ?';
 
         db.execute(checkUserQuery, [userId, name], async (err, results) => {
+            if (responseSent) return;
+
             if (err) {
                 console.error('='.repeat(60));
                 console.error('❌ DATABASE ERROR AT LOGIN');
@@ -363,6 +389,7 @@ app.post('/api/auth/login', async (req, res) => {
                 console.error('SQL Code:', err.code);
                 console.error('='.repeat(60));
 
+                responseSent = true;
                 return res.status(500).json({
                     success: false,
                     message: err.sqlMessage || 'Database connection error',
@@ -374,6 +401,7 @@ app.post('/api/auth/login', async (req, res) => {
 
             if (results.length === 0) {
                 console.log('❌ User not found with provided credentials');
+                responseSent = true;
                 return res.status(401).json({
                     success: false,
                     message: 'Invalid name, user ID or password'
@@ -389,6 +417,7 @@ app.post('/api/auth/login', async (req, res) => {
 
                 if (!isValidPassword) {
                     console.log('❌ Invalid password');
+                    responseSent = true;
                     return res.status(401).json({
                         success: false,
                         message: 'Invalid name, user ID or password'
@@ -402,6 +431,8 @@ app.post('/api/auth/login', async (req, res) => {
                 const profileQuery = 'SELECT * FROM profile WHERE user_id = ?';
 
                 db.execute(profileQuery, [user.id], (profileErr, profileResults) => {
+                    if (responseSent) return;
+
                     if (profileErr) {
                         console.error('⚠️ Warning: Could not fetch profile:', profileErr.sqlMessage);
                     }
@@ -441,6 +472,7 @@ app.post('/api/auth/login', async (req, res) => {
                     console.log('Employee ID:', user.employee_id);
                     console.log('='.repeat(60));
 
+                    responseSent = true;
                     res.json({
                         success: true,
                         message: 'Login successful',
@@ -456,7 +488,9 @@ app.post('/api/auth/login', async (req, res) => {
                     });
                 });
             } catch (bcryptError) {
+                if (responseSent) return;
                 console.error('❌ Password comparison error:', bcryptError);
+                responseSent = true;
                 return res.status(500).json({
                     success: false,
                     message: 'Authentication error'
@@ -464,7 +498,9 @@ app.post('/api/auth/login', async (req, res) => {
             }
         });
     } catch (error) {
+        if (responseSent) return;
         console.error('❌ Login error:', error);
+        responseSent = true;
         res.status(500).json({
             success: false,
             message: 'Internal server error'
@@ -524,11 +560,13 @@ app.get('/api/user/profile', authenticateToken, (req, res) => {
 
 // Update user profile endpoint
 app.put('/api/user/profile', authenticateToken, upload.single('profileImage'), async (req, res) => {
+    let responseSent = false;
+
     try {
         const userId = req.user.userId;
         const { name, email, phone, zone } = req.body;
 
-        console.log('📝 Profile update request for user:', userId);
+        console.log('🔍 Profile update request for user:', userId);
 
         // Update users table (name)
         if (name) {
@@ -567,8 +605,11 @@ app.put('/api/user/profile', authenticateToken, upload.single('profileImage'), a
             updateValues.push(userId);
 
             db.execute(updateProfileQuery, updateValues, (err) => {
+                if (responseSent) return;
+
                 if (err) {
                     console.error('❌ Error updating profile:', err);
+                    responseSent = true;
                     return res.status(500).json({
                         success: false,
                         message: 'Failed to update profile'
@@ -576,19 +617,23 @@ app.put('/api/user/profile', authenticateToken, upload.single('profileImage'), a
                 }
 
                 console.log('✅ Profile updated for user:', userId);
+                responseSent = true;
                 res.json({
                     success: true,
                     message: 'Profile updated successfully'
                 });
             });
         } else {
+            responseSent = true;
             res.json({
                 success: true,
                 message: 'No changes to update'
             });
         }
     } catch (error) {
+        if (responseSent) return;
         console.error('❌ Profile update error:', error);
+        responseSent = true;
         res.status(500).json({
             success: false,
             message: 'Internal server error'
@@ -818,6 +863,12 @@ app.get('/api/debug/check-tables', (req, res) => {
 // Error handling middleware
 app.use((err, req, res, next) => {
     console.error('❌ Unhandled Error:', err);
+
+    // Check if response has already been sent
+    if (res.headersSent) {
+        return next(err);
+    }
+
     res.status(500).json({
         success: false,
         message: err.message || 'Internal server error'
@@ -843,8 +894,8 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log('🚀 FIELD MANAGEMENT API SERVER STARTED');
     console.log('='.repeat(60));
     console.log(`📍 Port: ${PORT}`);
-    console.log(`📍 Local: http://localhost:${PORT}`);
-    console.log(`📍 Network: http://16.176.206.156:${PORT}`);
+    console.log(`🏠 Local: http://localhost:${PORT}`);
+    console.log(`🌐 Network: http://16.176.206.156:${PORT}`);
     console.log(`🏥 Health Check: http://16.176.206.156:${PORT}/`);
     console.log(`🔍 DB Test: http://16.176.206.156:${PORT}/api/debug/db-test`);
     console.log(`📊 Check Tables: http://16.176.206.156:${PORT}/api/debug/check-tables`);
