@@ -351,7 +351,7 @@ app.post('/api/auth/signup', upload.single('profileImage'), async (req, res) => 
     }
 });
 
-// Login endpoint
+// Login endpoint - FIXED to prevent ERR_HTTP_HEADERS_SENT
 app.post('/api/auth/login', async (req, res) => {
     let responseSent = false;
 
@@ -415,9 +415,10 @@ app.post('/api/auth/login', async (req, res) => {
                 console.log('🔍 Step 2: Verifying password...');
                 const isValidPassword = await bcrypt.compare(password, user.password);
 
+                if (responseSent) return;
+
                 if (!isValidPassword) {
                     console.log('❌ Invalid password');
-                    if (responseSent) return;
                     responseSent = true;
                     return res.status(401).json({
                         success: false,
@@ -453,6 +454,8 @@ app.post('/api/auth/login', async (req, res) => {
                     } else {
                         console.log('⚠️ No profile data found for user');
                     }
+
+                    if (responseSent) return;
 
                     console.log('🔍 Step 4: Generating JWT token...');
                     const token = jwt.sign(
@@ -811,7 +814,7 @@ app.get('/', (req, res) => {
     res.json({
         message: 'Field Management API is running! 🚀',
         timestamp: new Date().toISOString(),
-        version: '1.0.1',
+        version: '1.0.2',
         endpoints: {
             auth: {
                 signup: 'POST /api/auth/signup',
