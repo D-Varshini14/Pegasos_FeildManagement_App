@@ -6,18 +6,55 @@ const mysql = require('mysql2');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const rateLimit = require('express-rate-limit');
+const winston = require('winston');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+const SERVER_URL = process.env.SERVER_URL || `http://localhost:${PORT}`;
 
-// Create uploads directory if it doesn't exist
+// ==================== LOGGING SETUP ====================
+
+const logger = winston.createLogger({
+    level: IS_PRODUCTION ? 'info' : 'debug',
+    format: winston.format.combine(
+        winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
+        winston.format.errors({ stack: true }),
+        winston.format.splat(),
+        winston.format.json()
+    ),
+    defaultMeta: { service: 'field-management-api' },
+    transports: [
+        new winston.transports.File({ filename: 'logs/error.log', level: 'error' }),
+        new winston.transports.File({ filename: 'logs/combined.log' }),
+    ],
+});
+
+// Console output in development
+if (!IS_PRODUCTION) {
+    logger.add(new winston.transports.Console({
+        format: winston.format.combine(
+            winston.format.colorize(),
+            winston.format.simple()
+        )
+    }));
+}
+
+// Create logs directory if it doesn't exist
+const logsDir = path.join(__dirname, 'logs');
+if (!fs.existsSync(logsDir)) {
+    fs.mkdirSync(logsDir, { recursive: true });
+}
+
+// ==================== FILE UPLOAD SETUP ====================
+
 const uploadsDir = path.join(__dirname, 'uploads', 'profiles');
 if (!fs.existsSync(uploadsDir)) {
     fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
-// Configure multer for file uploads
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
         cb(null, uploadsDir);
@@ -30,7 +67,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({
     storage: storage,
-    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+    limits: { fileSize: 5 * 1024 * 1024 },
     fileFilter: (req, file, cb) => {
         const filetypes = /jpeg|jpg|png/;
         const mimetype = filetypes.test(file.mimetype);
@@ -43,7 +80,8 @@ const upload = multer({
     }
 });
 
-// Database connection with connection pool
+// ==================== DATABASE SETUP ====================
+
 const db = mysql.createPool({
     host: process.env.DB_HOST,
     user: process.env.DB_USER,
@@ -52,461 +90,332 @@ const db = mysql.createPool({
     port: process.env.DB_PORT || 3306,
     waitForConnections: true,
     connectionLimit: 10,
-    queueLimit: 0
-});
+    queueLimit: 0,
+    timezone: '+00:00' // Store dates in UTC
+}).promise();
 
 // Test database connection
-db.getConnection((err, connection) => {
-    if (err) {
-        console.error('❌ Database connection failed:', err);
-        console.error('❌ Error Code:', err.code);
-        console.error('❌ Error Message:', err.message);
+(async () => {
+    try {
+        await db.query('SELECT 1');
+        logger.info('✅ Connected to MySQL database');
+    } catch (err) {
+        logger.error('❌ Database connection failed', { error: err.message, code: err.code });
         process.exit(1);
     }
-    console.log('✅ Connected to MySQL database');
-    connection.release();
-});
+})();
 
-// Middleware
+// ==================== MIDDLEWARE ====================
+
 app.use(cors());
 app.use(express.json());
 app.use('/uploads', express.static('uploads'));
 
-// Function to generate next Employee ID
-function generateEmployeeId(callback) {
-    const query = 'SELECT employee_id FROM users ORDER BY id DESC LIMIT 1';
-
-    db.execute(query, (err, results) => {
-        if (err) {
-            console.error('❌ Error in generateEmployeeId:', err);
-            callback(err, null);
-            return;
-        }
-
-        let nextNumber = 1;
-
-        if (results.length > 0 && results[0].employee_id) {
-            const lastId = results[0].employee_id;
-            const match = lastId.match(/^EMP(\d+)$/);
-            if (match) {
-                const lastNumber = parseInt(match[1]);
-                nextNumber = lastNumber + 1;
-            }
-        }
-
-        const newEmployeeId = 'EMP' + String(nextNumber).padStart(3, '0');
-        console.log('✅ Generated Employee ID:', newEmployeeId);
-        callback(null, newEmployeeId);
+// Request logging middleware
+app.use((req, res, next) => {
+    logger.info(`${req.method} ${req.path}`, {
+        ip: req.ip,
+        userAgent: req.get('user-agent')
     });
+    next();
+});
+
+// ==================== RATE LIMITING ====================
+
+// Strict rate limiting for auth endpoints (only in production)
+const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: IS_PRODUCTION ? 5 : 1000, // Relaxed in development
+    message: {
+        success: false,
+        message: 'Too many attempts, please try again after 15 minutes'
+    },
+    skip: (req) => !IS_PRODUCTION, // Skip in development if needed
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+// General API rate limiting
+const apiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: IS_PRODUCTION ? 100 : 1000,
+    message: {
+        success: false,
+        message: 'Too many requests, please try again later'
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/signup', authLimiter);
+app.use('/api/', apiLimiter);
+
+// ==================== HELPER FUNCTIONS ====================
+
+// Delete old profile image
+async function deleteOldProfileImage(imagePath) {
+    if (!imagePath) return;
+
+    const fullPath = path.join(__dirname, imagePath);
+    try {
+        if (fs.existsSync(fullPath)) {
+            fs.unlinkSync(fullPath);
+            logger.info('Deleted old profile image', { path: imagePath });
+        }
+    } catch (err) {
+        logger.warn('Failed to delete old image', { path: imagePath, error: err.message });
+    }
+}
+
+// Convert image path to full URL
+function getImageUrl(imagePath) {
+    if (!imagePath) return null;
+    return `${SERVER_URL}${imagePath}`;
 }
 
 // ==================== AUTHENTICATION ENDPOINTS ====================
 
-// Signup endpoint - FIXED to prevent ERR_HTTP_HEADERS_SENT
+// Signup endpoint
 app.post('/api/auth/signup', upload.single('profileImage'), async (req, res) => {
-    let responseSent = false;
-
     try {
         const { name, email, phone, zone, role, password } = req.body;
 
-        console.log('='.repeat(60));
-        console.log('📝 SIGNUP REQUEST RECEIVED');
-        console.log('='.repeat(60));
-        console.log('Name:', name);
-        console.log('Email:', email);
-        console.log('Phone:', phone);
-        console.log('Zone:', zone);
-        console.log('Role:', role);
-        console.log('Password:', password ? '[PROVIDED]' : '[MISSING]');
-        console.log('Profile Image:', req.file ? req.file.filename : 'None');
-        console.log('='.repeat(60));
+        logger.info('Signup request received', { email });
 
         // Validate required fields
         if (!name || !email || !password) {
-            console.log('❌ Validation failed: Missing required fields');
-            responseSent = true;
             return res.status(400).json({
                 success: false,
                 message: 'Name, email, and password are required'
             });
         }
 
-        // Check if email already exists in profile table
-        console.log('🔍 Step 1: Checking if email exists...');
-        const checkEmailQuery = 'SELECT * FROM profile WHERE email = ?';
+        // Validate email format
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid email format'
+            });
+        }
 
-        db.execute(checkEmailQuery, [email], async (err, results) => {
-            if (responseSent) return;
+        // Validate password strength
+        if (password.length < 8) {
+            return res.status(400).json({
+                success: false,
+                message: 'Password must be at least 8 characters long'
+            });
+        }
 
-            if (err) {
-                console.error('='.repeat(60));
-                console.error('❌ DATABASE ERROR AT EMAIL CHECK');
-                console.error('='.repeat(60));
-                console.error('Full Error Object:', err);
-                console.error('SQL Message:', err.sqlMessage);
-                console.error('SQL Code:', err.code);
-                console.error('SQL State:', err.sqlState);
-                console.error('SQL Query:', checkEmailQuery);
-                console.error('SQL Params:', [email]);
-                console.error('='.repeat(60));
+        // Check JWT secret
+        if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
+            logger.error('JWT_SECRET is not configured or too short');
+            return res.status(500).json({
+                success: false,
+                message: 'Server configuration error'
+            });
+        }
 
-                responseSent = true;
-                return res.status(500).json({
-                    success: false,
-                    message: err.sqlMessage || err.message || 'Database error during email check',
-                    error_code: err.code,
-                    error_state: err.sqlState,
-                    step: 'email_check'
-                });
+        // Check if email already exists
+        const [existing] = await db.execute(
+            'SELECT id FROM profile WHERE email = ?',
+            [email.trim().toLowerCase()]
+        );
+
+        if (existing.length > 0) {
+            logger.warn('Signup failed: Email already exists', { email });
+            return res.status(400).json({
+                success: false,
+                message: 'Email already exists'
+            });
+        }
+
+        // Generate Employee ID
+        const [lastUser] = await db.execute(
+            'SELECT employee_id FROM users ORDER BY id DESC LIMIT 1'
+        );
+
+        let nextNumber = 1;
+        if (lastUser.length > 0 && lastUser[0].employee_id) {
+            const lastId = lastUser[0].employee_id;
+            const match = lastId.match(/^EMP(\d+)$/);
+            if (match) {
+                nextNumber = parseInt(match[1]) + 1;
             }
+        }
 
-            console.log('✅ Email check query executed successfully');
-            console.log('📊 Results found:', results.length);
+        const employeeId = 'EMP' + String(nextNumber).padStart(3, '0');
 
-            if (results.length > 0) {
-                console.log('❌ Email already exists in database');
-                responseSent = true;
-                return res.status(400).json({
-                    success: false,
-                    message: 'Email already exists'
-                });
-            }
+        // Hash password
+        const hashedPassword = await bcrypt.hash(password, 10);
 
-            console.log('✅ Email is available');
+        // Get profile image path
+        const profileImagePath = req.file ? `/uploads/profiles/${req.file.filename}` : null;
 
-            // Generate Employee ID
-            console.log('🔍 Step 2: Generating Employee ID...');
-            generateEmployeeId(async (empErr, employeeId) => {
-                if (responseSent) return;
+        // Insert into users table
+        const [userResult] = await db.execute(
+            'INSERT INTO users (employee_id, name, password, created_at) VALUES (?, ?, ?, UTC_TIMESTAMP())',
+            [employeeId, name.trim(), hashedPassword]
+        );
 
-                if (empErr) {
-                    console.error('❌ Error generating employee ID:', empErr);
-                    responseSent = true;
-                    return res.status(500).json({
-                        success: false,
-                        message: 'Failed to generate employee ID',
-                        error: empErr.message,
-                        step: 'generate_employee_id'
-                    });
-                }
+        const userId = userResult.insertId;
+        logger.info('User created', { userId, employeeId });
 
-                console.log('✅ Employee ID generated:', employeeId);
+        // Insert into profile table
+        try {
+            await db.execute(
+                `INSERT INTO profile (user_id, email, phone, zone, role, profile_image, created_at) 
+                 VALUES (?, ?, ?, ?, ?, ?, UTC_TIMESTAMP())`,
+                [
+                    userId,
+                    email.trim().toLowerCase(),
+                    phone || null,
+                    zone || null,
+                    role || 'field_executive',
+                    profileImagePath
+                ]
+            );
 
-                try {
-                    // Hash password
-                    console.log('🔍 Step 3: Hashing password...');
-                    const hashedPassword = await bcrypt.hash(password, 10);
-                    console.log('✅ Password hashed successfully');
+            logger.info('Profile created successfully', { userId, employeeId });
 
-                    // Get profile image path if uploaded
-                    const profileImagePath = req.file ? `/uploads/profiles/${req.file.filename}` : null;
-                    console.log('📸 Profile image path:', profileImagePath || 'None');
-
-                    // Insert into users table first
-                    console.log('🔍 Step 4: Inserting into users table...');
-                    const insertUserQuery = `
-                        INSERT INTO users (employee_id, name, password, created_at) 
-                        VALUES (?, ?, ?, NOW())
-                    `;
-
-                    db.execute(insertUserQuery, [employeeId, name.trim(), hashedPassword], (userErr, userResult) => {
-                        if (responseSent) return;
-
-                        if (userErr) {
-                            console.error('='.repeat(60));
-                            console.error('❌ DATABASE ERROR AT USER INSERTION');
-                            console.error('='.repeat(60));
-                            console.error('Full Error Object:', userErr);
-                            console.error('SQL Message:', userErr.sqlMessage);
-                            console.error('SQL Code:', userErr.code);
-                            console.error('SQL Query:', insertUserQuery);
-                            console.error('SQL Params:', [employeeId, name.trim(), '[HASHED_PASSWORD]']);
-                            console.error('='.repeat(60));
-
-                            responseSent = true;
-                            return res.status(500).json({
-                                success: false,
-                                message: userErr.sqlMessage || 'Failed to create user account',
-                                error_code: userErr.code,
-                                step: 'user_insertion'
-                            });
-                        }
-
-                        const userId = userResult.insertId;
-                        console.log('✅ User inserted successfully with ID:', userId);
-
-                        // Insert into profile table
-                        console.log('🔍 Step 5: Inserting into profile table...');
-                        const insertProfileQuery = `
-                            INSERT INTO profile (user_id, email, phone, zone, role, profile_image, created_at) 
-                            VALUES (?, ?, ?, ?, ?, ?, NOW())
-                        `;
-
-                        const profileValues = [
-                            userId,
-                            email.trim(),
-                            phone || null,
-                            zone || null,
-                            role || 'field_executive',
-                            profileImagePath
-                        ];
-
-                        console.log('📋 Profile values:', {
-                            user_id: userId,
-                            email: email.trim(),
-                            phone: phone || null,
-                            zone: zone || null,
-                            role: role || 'field_executive',
-                            profile_image: profileImagePath
-                        });
-
-                        db.execute(insertProfileQuery, profileValues, (profileErr, profileResult) => {
-                            if (responseSent) return;
-
-                            if (profileErr) {
-                                console.error('='.repeat(60));
-                                console.error('❌ DATABASE ERROR AT PROFILE INSERTION');
-                                console.error('='.repeat(60));
-                                console.error('Full Error Object:', profileErr);
-                                console.error('SQL Message:', profileErr.sqlMessage);
-                                console.error('SQL Code:', profileErr.code);
-                                console.error('SQL Query:', insertProfileQuery);
-                                console.error('SQL Params:', profileValues);
-                                console.error('='.repeat(60));
-
-                                // Rollback: Delete the user if profile creation fails
-                                console.log('🔄 Rolling back user creation...');
-                                db.execute('DELETE FROM users WHERE id = ?', [userId], (rollbackErr) => {
-                                    if (rollbackErr) {
-                                        console.error('❌ Rollback failed:', rollbackErr);
-                                    } else {
-                                        console.log('✅ User rollback completed');
-                                    }
-                                });
-
-                                responseSent = true;
-                                return res.status(500).json({
-                                    success: false,
-                                    message: profileErr.sqlMessage || 'Failed to create profile',
-                                    error_code: profileErr.code,
-                                    step: 'profile_insertion'
-                                });
-                            }
-
-                            console.log('✅ Profile inserted successfully');
-                            console.log('='.repeat(60));
-                            console.log('🎉 SIGNUP COMPLETED SUCCESSFULLY');
-                            console.log('='.repeat(60));
-                            console.log('User ID:', userId);
-                            console.log('Employee ID:', employeeId);
-                            console.log('Name:', name.trim());
-                            console.log('Email:', email.trim());
-                            console.log('='.repeat(60));
-
-                            responseSent = true;
-                            res.status(201).json({
-                                success: true,
-                                message: 'Account created successfully',
-                                data: {
-                                    id: userId,
-                                    name: name.trim(),
-                                    employeeId: employeeId,
-                                    email: email.trim(),
-                                    phone: phone || null,
-                                    role: role || 'field_executive',
-                                    zone: zone || null
-                                }
-                            });
-                        });
-                    });
-                } catch (hashError) {
-                    if (responseSent) return;
-                    console.error('❌ Password hashing error:', hashError);
-                    responseSent = true;
-                    return res.status(500).json({
-                        success: false,
-                        message: 'Failed to process password',
-                        error: hashError.message,
-                        step: 'password_hashing'
-                    });
+            return res.status(201).json({
+                success: true,
+                message: 'Account created successfully',
+                data: {
+                    id: userId,
+                    name: name.trim(),
+                    employeeId: employeeId,
+                    email: email.trim().toLowerCase(),
+                    phone: phone || null,
+                    role: role || 'field_executive',
+                    zone: zone || null,
+                    profileImage: getImageUrl(profileImagePath)
                 }
             });
-        });
-    } catch (error) {
-        if (responseSent) return;
-        console.error('='.repeat(60));
-        console.error('❌ UNEXPECTED ERROR IN SIGNUP');
-        console.error('='.repeat(60));
-        console.error('Error:', error);
-        console.error('Stack:', error.stack);
-        console.error('='.repeat(60));
 
-        responseSent = true;
-        res.status(500).json({
+        } catch (profileErr) {
+            logger.error('Profile creation failed, rolling back', { userId, error: profileErr.message });
+
+            // Rollback: Delete user
+            await db.execute('DELETE FROM users WHERE id = ?', [userId]);
+
+            // Delete uploaded image if exists
+            if (req.file) {
+                deleteOldProfileImage(profileImagePath);
+            }
+
+            return res.status(500).json({
+                success: false,
+                message: 'Failed to create account'
+            });
+        }
+
+    } catch (error) {
+        logger.error('Signup error', { error: error.message, stack: error.stack });
+
+        // Delete uploaded image on error
+        if (req.file) {
+            deleteOldProfileImage(`/uploads/profiles/${req.file.filename}`);
+        }
+
+        return res.status(500).json({
             success: false,
-            message: 'Internal server error',
-            error: error.message,
-            step: 'unexpected_error'
+            message: IS_PRODUCTION ? 'Internal server error' : error.message
         });
     }
 });
 
-// Login endpoint - FIXED to prevent ERR_HTTP_HEADERS_SENT
+// Login endpoint
 app.post('/api/auth/login', async (req, res) => {
-    let responseSent = false;
-
     try {
-        const { name, userId, password } = req.body;
+        const { employeeId, password } = req.body;
 
-        console.log('='.repeat(60));
-        console.log('🔍 LOGIN REQUEST RECEIVED');
-        console.log('='.repeat(60));
-        console.log('Name:', name);
-        console.log('User ID:', userId);
-        console.log('Password:', password ? '[PROVIDED]' : '[MISSING]');
-        console.log('='.repeat(60));
+        logger.info('Login attempt', { employeeId });
 
-        if (!name || !userId || !password) {
-            console.log('❌ Validation failed: Missing credentials');
-            responseSent = true;
+        if (!employeeId || !password) {
             return res.status(400).json({
                 success: false,
-                message: 'Name, User ID and password are required'
+                message: 'Employee ID and password are required'
             });
         }
 
-        console.log('🔍 Step 1: Checking user credentials...');
-        const checkUserQuery = 'SELECT * FROM users WHERE employee_id = ? AND name = ?';
+        // Check user credentials
+        const [users] = await db.execute(
+            'SELECT * FROM users WHERE employee_id = ?',
+            [employeeId.trim()]
+        );
 
-        db.execute(checkUserQuery, [userId, name], async (err, results) => {
-            if (responseSent) return;
+        if (users.length === 0) {
+            logger.warn('Login failed: Invalid employee ID', { employeeId });
+            return res.status(401).json({
+                success: false,
+                message: 'Invalid employee ID or password'
+            });
+        }
 
-            if (err) {
-                console.error('='.repeat(60));
-                console.error('❌ DATABASE ERROR AT LOGIN');
-                console.error('='.repeat(60));
-                console.error('SQL Message:', err.sqlMessage);
-                console.error('SQL Code:', err.code);
-                console.error('='.repeat(60));
+        const user = users[0];
 
-                responseSent = true;
-                return res.status(500).json({
-                    success: false,
-                    message: err.sqlMessage || 'Database connection error',
-                    error_code: err.code
-                });
-            }
+        // Verify password
+        const isValidPassword = await bcrypt.compare(password, user.password);
 
-            console.log('✅ User query executed, results found:', results.length);
+        if (!isValidPassword) {
+            logger.warn('Login failed: Invalid password', { employeeId });
+            return res.status(401).json({
+                success: false,
+                message: 'Invalid employee ID or password'
+            });
+        }
 
-            if (results.length === 0) {
-                console.log('❌ User not found with provided credentials');
-                responseSent = true;
-                return res.status(401).json({
-                    success: false,
-                    message: 'Invalid name, user ID or password'
-                });
-            }
+        // Fetch profile data
+        const [profiles] = await db.execute(
+            'SELECT * FROM profile WHERE user_id = ?',
+            [user.id]
+        );
 
-            const user = results[0];
-            console.log('✅ User found:', user.name, '(' + user.employee_id + ')');
+        let profileData = {};
 
-            try {
-                console.log('🔍 Step 2: Verifying password...');
-                const isValidPassword = await bcrypt.compare(password, user.password);
+        if (profiles.length > 0) {
+            const profile = profiles[0];
+            profileData = {
+                email: profile.email,
+                phone: profile.phone,
+                role: profile.role,
+                zone: profile.zone,
+                profileImage: getImageUrl(profile.profile_image)
+            };
+        }
 
-                if (responseSent) return;
+        // Generate JWT token
+        const token = jwt.sign(
+            {
+                userId: user.id,
+                employeeId: user.employee_id,
+                name: user.name
+            },
+            process.env.JWT_SECRET,
+            { expiresIn: '24h' }
+        );
 
-                if (!isValidPassword) {
-                    console.log('❌ Invalid password');
-                    responseSent = true;
-                    return res.status(401).json({
-                        success: false,
-                        message: 'Invalid name, user ID or password'
-                    });
+        logger.info('Login successful', { userId: user.id, employeeId });
+
+        return res.json({
+            success: true,
+            message: 'Login successful',
+            data: {
+                token,
+                user: {
+                    id: user.id,
+                    name: user.name,
+                    employeeId: user.employee_id,
+                    ...profileData
                 }
-
-                console.log('✅ Password verified successfully');
-
-                // Fetch profile data
-                console.log('🔍 Step 3: Fetching profile data...');
-                const profileQuery = 'SELECT * FROM profile WHERE user_id = ?';
-
-                db.execute(profileQuery, [user.id], (profileErr, profileResults) => {
-                    if (responseSent) return;
-
-                    if (profileErr) {
-                        console.error('⚠️ Warning: Could not fetch profile:', profileErr.sqlMessage);
-                    }
-
-                    let profileData = {};
-
-                    if (!profileErr && profileResults.length > 0) {
-                        const profile = profileResults[0];
-                        profileData = {
-                            email: profile.email,
-                            phone: profile.phone,
-                            role: profile.role,
-                            zone: profile.zone,
-                            profileImage: profile.profile_image
-                        };
-                        console.log('✅ Profile data fetched successfully');
-                    } else {
-                        console.log('⚠️ No profile data found for user');
-                    }
-
-                    if (responseSent) return;
-
-                    console.log('🔍 Step 4: Generating JWT token...');
-                    const token = jwt.sign(
-                        {
-                            userId: user.id,
-                            employeeId: user.employee_id,
-                            name: user.name
-                        },
-                        process.env.JWT_SECRET,
-                        { expiresIn: '24h' }
-                    );
-
-                    console.log('✅ JWT token generated');
-                    console.log('='.repeat(60));
-                    console.log('🎉 LOGIN SUCCESSFUL');
-                    console.log('='.repeat(60));
-                    console.log('User:', user.name);
-                    console.log('Employee ID:', user.employee_id);
-                    console.log('='.repeat(60));
-
-                    if (responseSent) return;
-                    responseSent = true;
-                    res.json({
-                        success: true,
-                        message: 'Login successful',
-                        data: {
-                            token,
-                            user: {
-                                id: user.id,
-                                name: user.name,
-                                employeeId: user.employee_id,
-                                ...profileData
-                            }
-                        }
-                    });
-                });
-            } catch (bcryptError) {
-                if (responseSent) return;
-                console.error('❌ Password comparison error:', bcryptError);
-                responseSent = true;
-                return res.status(500).json({
-                    success: false,
-                    message: 'Authentication error'
-                });
             }
         });
+
     } catch (error) {
-        if (responseSent) return;
-        console.error('❌ Login error:', error);
-        responseSent = true;
-        res.status(500).json({
+        logger.error('Login error', { error: error.message });
+        return res.status(500).json({
             success: false,
             message: 'Internal server error'
         });
@@ -515,27 +424,18 @@ app.post('/api/auth/login', async (req, res) => {
 
 // ==================== USER ENDPOINTS ====================
 
-// Get user profile endpoint
-app.get('/api/user/profile', authenticateToken, (req, res) => {
-    const userId = req.user.userId;
+// Get user profile
+app.get('/api/user/profile', authenticateToken, async (req, res) => {
+    try {
+        const userId = req.user.userId;
 
-    console.log('📋 Fetching profile for user ID:', userId);
-
-    const query = `
-        SELECT u.id, u.employee_id, u.name, p.email, p.phone, p.role, p.zone, p.profile_image 
-        FROM users u
-        LEFT JOIN profile p ON u.id = p.user_id
-        WHERE u.id = ?
-    `;
-
-    db.execute(query, [userId], (err, results) => {
-        if (err) {
-            console.error('❌ Error fetching profile:', err);
-            return res.status(500).json({
-                success: false,
-                message: 'Database error'
-            });
-        }
+        const [results] = await db.execute(
+            `SELECT u.id, u.employee_id, u.name, p.email, p.phone, p.role, p.zone, p.profile_image 
+             FROM users u
+             LEFT JOIN profile p ON u.id = p.user_id
+             WHERE u.id = ?`,
+            [userId]
+        );
 
         if (results.length === 0) {
             return res.status(404).json({
@@ -545,9 +445,8 @@ app.get('/api/user/profile', authenticateToken, (req, res) => {
         }
 
         const user = results[0];
-        console.log('✅ Profile fetched successfully');
 
-        res.json({
+        return res.json({
             success: true,
             data: {
                 id: user.id,
@@ -557,233 +456,307 @@ app.get('/api/user/profile', authenticateToken, (req, res) => {
                 phone: user.phone,
                 role: user.role,
                 zone: user.zone,
-                profileImage: user.profile_image
+                profileImage: getImageUrl(user.profile_image)
             }
         });
-    });
+
+    } catch (error) {
+        logger.error('Error fetching profile', { userId: req.user.userId, error: error.message });
+        return res.status(500).json({
+            success: false,
+            message: 'Failed to fetch profile'
+        });
+    }
 });
 
-// Update user profile endpoint - FIXED
-app.put('/api/user/profile', authenticateToken, upload.single('profileImage'), (req, res) => {
-    let responseSent = false;
+// Update user profile
+app.put('/api/user/profile', authenticateToken, upload.single('profileImage'), async (req, res) => {
+    try {
+        const userId = req.user.userId;
+        const { name, email, phone, zone } = req.body;
 
-    const userId = req.user.userId;
-    const { name, email, phone, zone } = req.body;
+        // Get current profile image before updating
+        let oldImagePath = null;
+        if (req.file) {
+            const [currentProfile] = await db.execute(
+                'SELECT profile_image FROM profile WHERE user_id = ?',
+                [userId]
+            );
+            if (currentProfile.length > 0) {
+                oldImagePath = currentProfile[0].profile_image;
+            }
+        }
 
-    console.log('🔍 Profile update request for user:', userId);
-
-    // Prepare profile updates
-    let updateProfileQuery = 'UPDATE profile SET';
-    const updateValues = [];
-    const updateFields = [];
-
-    if (email) {
-        updateFields.push(' email = ?');
-        updateValues.push(email.trim());
-    }
-    if (phone) {
-        updateFields.push(' phone = ?');
-        updateValues.push(phone);
-    }
-    if (zone) {
-        updateFields.push(' zone = ?');
-        updateValues.push(zone);
-    }
-    if (req.file) {
-        updateFields.push(' profile_image = ?');
-        updateValues.push(`/uploads/profiles/${req.file.filename}`);
-    }
-
-    // Function to update user name
-    const updateUserName = (callback) => {
+        // Update user name if provided
         if (name) {
-            const updateUserQuery = 'UPDATE users SET name = ? WHERE id = ?';
-            db.execute(updateUserQuery, [name.trim(), userId], (err) => {
-                if (err) {
-                    console.error('❌ Error updating user name:', err);
-                    callback(err);
-                } else {
-                    console.log('✅ User name updated');
-                    callback(null);
-                }
-            });
-        } else {
-            callback(null);
-        }
-    };
-
-    // Function to update profile
-    const updateProfile = (callback) => {
-        if (updateFields.length > 0) {
-            updateProfileQuery += updateFields.join(',') + ' WHERE user_id = ?';
-            updateValues.push(userId);
-
-            db.execute(updateProfileQuery, updateValues, (err) => {
-                if (err) {
-                    console.error('❌ Error updating profile:', err);
-                    callback(err);
-                } else {
-                    console.log('✅ Profile updated');
-                    callback(null);
-                }
-            });
-        } else {
-            callback(null);
-        }
-    };
-
-    // Update user name first, then profile
-    updateUserName((nameErr) => {
-        if (responseSent) return;
-
-        if (nameErr) {
-            responseSent = true;
-            return res.status(500).json({
-                success: false,
-                message: 'Failed to update user name'
-            });
+            await db.execute(
+                'UPDATE users SET name = ? WHERE id = ?',
+                [name.trim(), userId]
+            );
         }
 
-        updateProfile((profileErr) => {
-            if (responseSent) return;
+        // Prepare profile updates
+        const updateFields = [];
+        const updateValues = [];
 
-            if (profileErr) {
-                responseSent = true;
-                return res.status(500).json({
+        if (email) {
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(email)) {
+                return res.status(400).json({
                     success: false,
-                    message: 'Failed to update profile'
+                    message: 'Invalid email format'
                 });
             }
 
-            console.log('✅ Profile update completed for user:', userId);
-            responseSent = true;
-            res.json({
-                success: true,
-                message: 'Profile updated successfully'
-            });
+            const [existingEmail] = await db.execute(
+                'SELECT user_id FROM profile WHERE email = ? AND user_id != ?',
+                [email.trim().toLowerCase(), userId]
+            );
+
+            if (existingEmail.length > 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Email already in use'
+                });
+            }
+
+            updateFields.push('email = ?');
+            updateValues.push(email.trim().toLowerCase());
+        }
+        if (phone) {
+            updateFields.push('phone = ?');
+            updateValues.push(phone);
+        }
+        if (zone) {
+            updateFields.push('zone = ?');
+            updateValues.push(zone);
+        }
+        if (req.file) {
+            updateFields.push('profile_image = ?');
+            updateValues.push(`/uploads/profiles/${req.file.filename}`);
+        }
+
+        // Update profile if there are fields to update
+        if (updateFields.length > 0) {
+            updateValues.push(userId);
+            const updateQuery = `UPDATE profile SET ${updateFields.join(', ')} WHERE user_id = ?`;
+
+            await db.execute(updateQuery, updateValues);
+
+            // Delete old image if new one was uploaded
+            if (req.file && oldImagePath) {
+                await deleteOldProfileImage(oldImagePath);
+            }
+        }
+
+        logger.info('Profile updated', { userId });
+
+        return res.json({
+            success: true,
+            message: 'Profile updated successfully'
         });
-    });
+
+    } catch (error) {
+        logger.error('Profile update error', { userId: req.user.userId, error: error.message });
+
+        if (req.file) {
+            deleteOldProfileImage(`/uploads/profiles/${req.file.filename}`);
+        }
+
+        return res.status(500).json({
+            success: false,
+            message: 'Failed to update profile'
+        });
+    }
 });
 
 // ==================== TASKS ENDPOINTS ====================
 
-// Get tasks endpoint
-app.get('/api/tasks', authenticateToken, (req, res) => {
-    const userId = req.user.userId;
+// Get tasks with pagination
+app.get('/api/tasks', authenticateToken, async (req, res) => {
+    try {
+        const userId = req.user.userId;
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 20;
+        const offset = (page - 1) * limit;
 
-    const query = 'SELECT * FROM tasks WHERE assigned_to = ? ORDER BY scheduled_time ASC';
+        // Get total count
+        const [countResult] = await db.execute(
+            'SELECT COUNT(*) as total FROM tasks WHERE assigned_to = ?',
+            [userId]
+        );
+        const total = countResult[0].total;
 
-    db.execute(query, [userId], (err, results) => {
-        if (err) {
-            console.error('❌ Error fetching tasks:', err);
-            return res.status(500).json({
-                success: false,
-                message: 'Database error'
-            });
-        }
+        // Get paginated results
+        const [results] = await db.execute(
+            'SELECT * FROM tasks WHERE assigned_to = ? ORDER BY scheduled_time ASC LIMIT ? OFFSET ?',
+            [userId, limit, offset]
+        );
 
-        res.json({
+        return res.json({
             success: true,
-            data: results
+            data: results,
+            pagination: {
+                page,
+                limit,
+                total,
+                totalPages: Math.ceil(total / limit)
+            }
         });
-    });
+
+    } catch (error) {
+        logger.error('Error fetching tasks', { userId: req.user.userId, error: error.message });
+        return res.status(500).json({
+            success: false,
+            message: 'Failed to fetch tasks'
+        });
+    }
 });
 
-// Update task status endpoint
-app.put('/api/tasks/:taskId/status', authenticateToken, (req, res) => {
-    const { taskId } = req.params;
-    const { status, notes } = req.body;
+// Update task status
+app.put('/api/tasks/:taskId/status', authenticateToken, async (req, res) => {
+    try {
+        const { taskId } = req.params;
+        const { status, notes } = req.body;
+        const userId = req.user.userId;
 
-    const query = 'UPDATE tasks SET status = ?, notes = ?, updated_at = NOW() WHERE id = ?';
-
-    db.execute(query, [status, notes || null, taskId], (err, result) => {
-        if (err) {
-            console.error('❌ Error updating task:', err);
-            return res.status(500).json({
+        const validStatuses = ['pending', 'in_progress', 'completed', 'cancelled'];
+        if (!validStatuses.includes(status)) {
+            return res.status(400).json({
                 success: false,
-                message: 'Failed to update task'
+                message: 'Invalid status value'
             });
         }
+
+        const [result] = await db.execute(
+            'UPDATE tasks SET status = ?, notes = ?, updated_at = UTC_TIMESTAMP() WHERE id = ? AND assigned_to = ?',
+            [status, notes || null, taskId, userId]
+        );
 
         if (result.affectedRows === 0) {
             return res.status(404).json({
                 success: false,
-                message: 'Task not found'
+                message: 'Task not found or you do not have permission to update it'
             });
         }
 
-        console.log('✅ Task status updated:', taskId);
-        res.json({
+        logger.info('Task updated', { taskId, userId, status });
+
+        return res.json({
             success: true,
             message: 'Task updated successfully'
         });
-    });
+
+    } catch (error) {
+        logger.error('Task update error', { taskId: req.params.taskId, error: error.message });
+        return res.status(500).json({
+            success: false,
+            message: 'Failed to update task'
+        });
+    }
 });
 
 // ==================== LEAVES ENDPOINTS ====================
 
-// Apply leave endpoint
-app.post('/api/leaves', authenticateToken, (req, res) => {
-    const userId = req.user.userId;
-    const { leave_type, from_date, to_date, notes } = req.body;
+// Apply leave
+app.post('/api/leaves', authenticateToken, async (req, res) => {
+    try {
+        const userId = req.user.userId;
+        const { leave_type, from_date, to_date, notes } = req.body;
 
-    if (!leave_type || !from_date || !to_date) {
-        return res.status(400).json({
-            success: false,
-            message: 'Leave type, from date, and to date are required'
-        });
-    }
-
-    const query = `
-        INSERT INTO leaves (user_id, leave_type, from_date, to_date, notes, status, created_at) 
-        VALUES (?, ?, ?, ?, ?, 'pending', NOW())
-    `;
-
-    db.execute(query, [userId, leave_type, from_date, to_date, notes || null], (err, result) => {
-        if (err) {
-            console.error('❌ Error applying leave:', err);
-            return res.status(500).json({
+        if (!leave_type || !from_date || !to_date) {
+            return res.status(400).json({
                 success: false,
-                message: 'Failed to apply leave'
+                message: 'Leave type, from date, and to date are required'
             });
         }
 
-        console.log('✅ Leave application submitted by user:', userId);
-        res.status(201).json({
+        // Validate dates
+        const fromDate = new Date(from_date);
+        const toDate = new Date(to_date);
+
+        if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid date format'
+            });
+        }
+
+        if (toDate < fromDate) {
+            return res.status(400).json({
+                success: false,
+                message: 'End date must be after start date'
+            });
+        }
+
+        const [result] = await db.execute(
+            `INSERT INTO leaves (user_id, leave_type, from_date, to_date, notes, status, created_at) 
+             VALUES (?, ?, ?, ?, ?, 'pending', UTC_TIMESTAMP())`,
+            [userId, leave_type, from_date, to_date, notes || null]
+        );
+
+        logger.info('Leave applied', { userId, leaveId: result.insertId });
+
+        return res.status(201).json({
             success: true,
             message: 'Leave application submitted successfully',
             data: {
                 id: result.insertId
             }
         });
-    });
+
+    } catch (error) {
+        logger.error('Leave application error', { userId: req.user.userId, error: error.message });
+        return res.status(500).json({
+            success: false,
+            message: 'Failed to apply leave'
+        });
+    }
 });
 
-// Get leaves endpoint
-app.get('/api/leaves', authenticateToken, (req, res) => {
-    const userId = req.user.userId;
+// Get leaves with pagination
+app.get('/api/leaves', authenticateToken, async (req, res) => {
+    try {
+        const userId = req.user.userId;
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 20;
+        const offset = (page - 1) * limit;
 
-    const query = 'SELECT * FROM leaves WHERE user_id = ? ORDER BY created_at DESC';
+        // Get total count
+        const [countResult] = await db.execute(
+            'SELECT COUNT(*) as total FROM leaves WHERE user_id = ?',
+            [userId]
+        );
+        const total = countResult[0].total;
 
-    db.execute(query, [userId], (err, results) => {
-        if (err) {
-            console.error('❌ Error fetching leaves:', err);
-            return res.status(500).json({
-                success: false,
-                message: 'Database error'
-            });
-        }
+        // Get paginated results
+        const [results] = await db.execute(
+            'SELECT * FROM leaves WHERE user_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?',
+            [userId, limit, offset]
+        );
 
-        res.json({
+        return res.json({
             success: true,
-            data: results
+            data: results,
+            pagination: {
+                page,
+                limit,
+                total,
+                totalPages: Math.ceil(total / limit)
+            }
         });
-    });
+
+    } catch (error) {
+        logger.error('Error fetching leaves', { userId: req.user.userId, error: error.message });
+        return res.status(500).json({
+            success: false,
+            message: 'Failed to fetch leaves'
+        });
+    }
 });
 
 // ==================== MIDDLEWARE ====================
 
-// JWT middleware
 function authenticateToken(req, res, next) {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
@@ -797,6 +770,7 @@ function authenticateToken(req, res, next) {
 
     jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
         if (err) {
+            logger.warn('Invalid token attempt', { error: err.message });
             return res.status(403).json({
                 success: false,
                 message: 'Invalid or expired token'
@@ -809,122 +783,93 @@ function authenticateToken(req, res, next) {
 
 // ==================== HEALTH CHECK & DEBUG ====================
 
-// Health check endpoint
 app.get('/', (req, res) => {
-    res.json({
-        message: 'Field Management API is running! 🚀',
+    return res.json({
+        message: 'Field Management API - Enterprise Ready 🚀',
         timestamp: new Date().toISOString(),
-        version: '1.0.2',
-        endpoints: {
-            auth: {
-                signup: 'POST /api/auth/signup',
-                login: 'POST /api/auth/login'
-            },
-            user: {
-                getProfile: 'GET /api/user/profile',
-                updateProfile: 'PUT /api/user/profile'
-            },
-            tasks: {
-                getTasks: 'GET /api/tasks',
-                updateTaskStatus: 'PUT /api/tasks/:taskId/status'
-            },
-            leaves: {
-                applyLeave: 'POST /api/leaves',
-                getLeaves: 'GET /api/leaves'
-            }
+        version: '3.0.0',
+        environment: IS_PRODUCTION ? 'production' : 'development',
+        features: {
+            logging: 'winston',
+            rateLimiting: 'enabled',
+            pagination: 'enabled',
+            timezone: 'UTC'
         }
     });
 });
 
-// Database test endpoint
-app.get('/api/debug/db-test', (req, res) => {
-    console.log('🔍 Testing database connection...');
-
-    db.execute('SELECT 1 + 1 AS result', (err, results) => {
-        if (err) {
-            console.error('❌ Database test failed:', err);
-            return res.status(500).json({
-                success: false,
-                message: 'Database connection failed',
-                error: err.message
-            });
-        }
-
-        console.log('✅ Database test successful');
-        res.json({
+app.get('/api/debug/db-test', async (req, res) => {
+    try {
+        const [results] = await db.execute('SELECT 1 + 1 AS result');
+        return res.json({
             success: true,
             message: 'Database connection working',
             result: results[0].result
         });
-    });
+    } catch (error) {
+        logger.error('Database test failed', { error: error.message });
+        return res.status(500).json({
+            success: false,
+            message: 'Database connection failed'
+        });
+    }
 });
 
-// Check tables endpoint
-app.get('/api/debug/check-tables', (req, res) => {
-    console.log('🔍 Checking database tables...');
-
-    db.execute('SHOW TABLES', (err, results) => {
-        if (err) {
-            console.error('❌ Error checking tables:', err);
-            return res.status(500).json({
-                success: false,
-                message: 'Failed to check tables',
-                error: err.message
-            });
-        }
-
+app.get('/api/debug/check-tables', async (req, res) => {
+    try {
+        const [results] = await db.execute('SHOW TABLES');
         const tables = results.map(row => Object.values(row)[0]);
-        console.log('✅ Tables found:', tables);
-
-        res.json({
+        return res.json({
             success: true,
             tables: tables,
             count: tables.length
         });
-    });
+    } catch (error) {
+        logger.error('Error checking tables', { error: error.message });
+        return res.status(500).json({
+            success: false,
+            message: 'Failed to check tables'
+        });
+    }
 });
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-    console.error('❌ Unhandled Error:', err);
+    logger.error('Unhandled error', { error: err.message, stack: err.stack });
 
-    // Check if response has already been sent
     if (res.headersSent) {
-        console.error('⚠️ Headers already sent, cannot send error response');
         return next(err);
     }
 
-    res.status(500).json({
+    return res.status(500).json({
         success: false,
-        message: err.message || 'Internal server error'
+        message: IS_PRODUCTION ? 'Internal server error' : err.message
     });
 });
 
 // Graceful shutdown
 process.on('SIGINT', () => {
-    console.log('\n🛑 Shutting down gracefully...');
-    db.end((err) => {
-        if (err) {
-            console.error('Error closing database connection:', err);
-        } else {
-            console.log('✅ Database connection closed');
-        }
-        process.exit(0);
-    });
+    logger.info('Shutting down gracefully...');
+    process.exit(0);
 });
 
 // Start server
 app.listen(PORT, '0.0.0.0', () => {
+    logger.info('Server started', {
+        port: PORT,
+        environment: IS_PRODUCTION ? 'PRODUCTION' : 'DEVELOPMENT',
+        version: '3.0.0'
+    });
+
     console.log('='.repeat(60));
-    console.log('🚀 FIELD MANAGEMENT API SERVER STARTED');
+    console.log('🚀 FIELD MANAGEMENT API - ENTERPRISE READY');
     console.log('='.repeat(60));
     console.log(`📍 Port: ${PORT}`);
-    console.log(`🏠 Local: http://localhost:${PORT}`);
-    console.log(`🌐 Network: http://16.176.206.156:${PORT}`);
-    console.log(`🏥 Health Check: http://16.176.206.156:${PORT}/`);
-    console.log(`🔍 DB Test: http://16.176.206.156:${PORT}/api/debug/db-test`);
-    console.log(`📊 Check Tables: http://16.176.206.156:${PORT}/api/debug/check-tables`);
-    console.log('='.repeat(60));
-    console.log('✅ Server is ready to accept connections');
+    console.log(`🔒 Environment: ${IS_PRODUCTION ? 'PRODUCTION' : 'DEVELOPMENT'}`);
+    console.log(`🛡️  Rate Limiting: ${IS_PRODUCTION ? 'STRICT' : 'RELAXED'}`);
+    console.log(`📝 Logging: Winston (logs/combined.log)`);
+    console.log(`🌍 Timezone: UTC`);
+    console.log(`📄 Pagination: Enabled (default 20 items)`);
+    console.log(`🔑 Password Min: 8 characters`);
     console.log('='.repeat(60));
 });
