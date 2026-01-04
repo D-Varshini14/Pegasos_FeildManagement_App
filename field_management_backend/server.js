@@ -104,7 +104,7 @@ function generateEmployeeId(callback) {
 
 // Signup endpoint - FIXED to prevent ERR_HTTP_HEADERS_SENT
 app.post('/api/auth/signup', upload.single('profileImage'), async (req, res) => {
-    let responseSent = false; // Flag to track if response has been sent
+    let responseSent = false;
 
     try {
         const { name, email, phone, zone, role, password } = req.body;
@@ -136,7 +136,7 @@ app.post('/api/auth/signup', upload.single('profileImage'), async (req, res) => 
         const checkEmailQuery = 'SELECT * FROM profile WHERE email = ?';
 
         db.execute(checkEmailQuery, [email], async (err, results) => {
-            if (responseSent) return; // Prevent multiple responses
+            if (responseSent) return;
 
             if (err) {
                 console.error('='.repeat(60));
@@ -177,7 +177,7 @@ app.post('/api/auth/signup', upload.single('profileImage'), async (req, res) => 
             // Generate Employee ID
             console.log('🔍 Step 2: Generating Employee ID...');
             generateEmployeeId(async (empErr, employeeId) => {
-                if (responseSent) return; // Prevent multiple responses
+                if (responseSent) return;
 
                 if (empErr) {
                     console.error('❌ Error generating employee ID:', empErr);
@@ -210,7 +210,7 @@ app.post('/api/auth/signup', upload.single('profileImage'), async (req, res) => 
                     `;
 
                     db.execute(insertUserQuery, [employeeId, name.trim(), hashedPassword], (userErr, userResult) => {
-                        if (responseSent) return; // Prevent multiple responses
+                        if (responseSent) return;
 
                         if (userErr) {
                             console.error('='.repeat(60));
@@ -261,7 +261,7 @@ app.post('/api/auth/signup', upload.single('profileImage'), async (req, res) => 
                         });
 
                         db.execute(insertProfileQuery, profileValues, (profileErr, profileResult) => {
-                            if (responseSent) return; // Prevent multiple responses
+                            if (responseSent) return;
 
                             if (profileErr) {
                                 console.error('='.repeat(60));
@@ -351,7 +351,7 @@ app.post('/api/auth/signup', upload.single('profileImage'), async (req, res) => 
     }
 });
 
-// Login endpoint - WITH ENHANCED ERROR LOGGING
+// Login endpoint
 app.post('/api/auth/login', async (req, res) => {
     let responseSent = false;
 
@@ -417,6 +417,7 @@ app.post('/api/auth/login', async (req, res) => {
 
                 if (!isValidPassword) {
                     console.log('❌ Invalid password');
+                    if (responseSent) return;
                     responseSent = true;
                     return res.status(401).json({
                         success: false,
@@ -472,6 +473,7 @@ app.post('/api/auth/login', async (req, res) => {
                     console.log('Employee ID:', user.employee_id);
                     console.log('='.repeat(60));
 
+                    if (responseSent) return;
                     responseSent = true;
                     res.json({
                         success: true,
@@ -558,87 +560,106 @@ app.get('/api/user/profile', authenticateToken, (req, res) => {
     });
 });
 
-// Update user profile endpoint
-app.put('/api/user/profile', authenticateToken, upload.single('profileImage'), async (req, res) => {
+// Update user profile endpoint - FIXED
+app.put('/api/user/profile', authenticateToken, upload.single('profileImage'), (req, res) => {
     let responseSent = false;
 
-    try {
-        const userId = req.user.userId;
-        const { name, email, phone, zone } = req.body;
+    const userId = req.user.userId;
+    const { name, email, phone, zone } = req.body;
 
-        console.log('🔍 Profile update request for user:', userId);
+    console.log('🔍 Profile update request for user:', userId);
 
-        // Update users table (name)
+    // Prepare profile updates
+    let updateProfileQuery = 'UPDATE profile SET';
+    const updateValues = [];
+    const updateFields = [];
+
+    if (email) {
+        updateFields.push(' email = ?');
+        updateValues.push(email.trim());
+    }
+    if (phone) {
+        updateFields.push(' phone = ?');
+        updateValues.push(phone);
+    }
+    if (zone) {
+        updateFields.push(' zone = ?');
+        updateValues.push(zone);
+    }
+    if (req.file) {
+        updateFields.push(' profile_image = ?');
+        updateValues.push(`/uploads/profiles/${req.file.filename}`);
+    }
+
+    // Function to update user name
+    const updateUserName = (callback) => {
         if (name) {
             const updateUserQuery = 'UPDATE users SET name = ? WHERE id = ?';
             db.execute(updateUserQuery, [name.trim(), userId], (err) => {
                 if (err) {
                     console.error('❌ Error updating user name:', err);
+                    callback(err);
+                } else {
+                    console.log('✅ User name updated');
+                    callback(null);
                 }
             });
+        } else {
+            callback(null);
         }
+    };
 
-        // Update profile table
-        let updateProfileQuery = 'UPDATE profile SET';
-        const updateValues = [];
-        const updateFields = [];
-
-        if (email) {
-            updateFields.push(' email = ?');
-            updateValues.push(email.trim());
-        }
-        if (phone) {
-            updateFields.push(' phone = ?');
-            updateValues.push(phone);
-        }
-        if (zone) {
-            updateFields.push(' zone = ?');
-            updateValues.push(zone);
-        }
-        if (req.file) {
-            updateFields.push(' profile_image = ?');
-            updateValues.push(`/uploads/profiles/${req.file.filename}`);
-        }
-
+    // Function to update profile
+    const updateProfile = (callback) => {
         if (updateFields.length > 0) {
             updateProfileQuery += updateFields.join(',') + ' WHERE user_id = ?';
             updateValues.push(userId);
 
             db.execute(updateProfileQuery, updateValues, (err) => {
-                if (responseSent) return;
-
                 if (err) {
                     console.error('❌ Error updating profile:', err);
-                    responseSent = true;
-                    return res.status(500).json({
-                        success: false,
-                        message: 'Failed to update profile'
-                    });
+                    callback(err);
+                } else {
+                    console.log('✅ Profile updated');
+                    callback(null);
                 }
-
-                console.log('✅ Profile updated for user:', userId);
-                responseSent = true;
-                res.json({
-                    success: true,
-                    message: 'Profile updated successfully'
-                });
             });
         } else {
+            callback(null);
+        }
+    };
+
+    // Update user name first, then profile
+    updateUserName((nameErr) => {
+        if (responseSent) return;
+
+        if (nameErr) {
+            responseSent = true;
+            return res.status(500).json({
+                success: false,
+                message: 'Failed to update user name'
+            });
+        }
+
+        updateProfile((profileErr) => {
+            if (responseSent) return;
+
+            if (profileErr) {
+                responseSent = true;
+                return res.status(500).json({
+                    success: false,
+                    message: 'Failed to update profile'
+                });
+            }
+
+            console.log('✅ Profile update completed for user:', userId);
             responseSent = true;
             res.json({
                 success: true,
-                message: 'No changes to update'
+                message: 'Profile updated successfully'
             });
-        }
-    } catch (error) {
-        if (responseSent) return;
-        console.error('❌ Profile update error:', error);
-        responseSent = true;
-        res.status(500).json({
-            success: false,
-            message: 'Internal server error'
         });
-    }
+    });
 });
 
 // ==================== TASKS ENDPOINTS ====================
@@ -790,7 +811,7 @@ app.get('/', (req, res) => {
     res.json({
         message: 'Field Management API is running! 🚀',
         timestamp: new Date().toISOString(),
-        version: '1.0.0',
+        version: '1.0.1',
         endpoints: {
             auth: {
                 signup: 'POST /api/auth/signup',
@@ -866,6 +887,7 @@ app.use((err, req, res, next) => {
 
     // Check if response has already been sent
     if (res.headersSent) {
+        console.error('⚠️ Headers already sent, cannot send error response');
         return next(err);
     }
 
