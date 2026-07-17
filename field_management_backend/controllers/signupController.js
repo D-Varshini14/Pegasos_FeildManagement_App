@@ -13,6 +13,14 @@ const signup = async (req, res) => {
             });
         }
 
+        // Block Admin signup on the backend
+        if (role && role.toLowerCase() === 'admin') {
+            return res.status(400).json({
+                success: false,
+                message: 'Administrator signup is strictly blocked on the backend.'
+            });
+        }
+
         // Validate email format
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!emailRegex.test(email)) {

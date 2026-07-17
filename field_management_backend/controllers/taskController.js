@@ -3,15 +3,30 @@ const moment = require('moment');
 
 const getTasks = (req, res) => {
     const userId = req.user.userId;
-    const query = `
-    SELECT t.*, u.name as assigned_to_name 
-    FROM tasks t 
-    LEFT JOIN users u ON t.assigned_to = u.id 
-    WHERE t.assigned_to = ? 
-    ORDER BY t.scheduled_time ASC
-  `;
+    const fetchAll = req.query.all === 'true';
 
-    db.execute(query, [userId], (err, results) => {
+    let query = `
+      SELECT t.*, u.name as assigned_to_name 
+      FROM tasks t 
+      LEFT JOIN users u ON t.assigned_to = u.id 
+    `;
+    let params = [];
+
+    if (fetchAll) {
+      if (req.user.role === 'field_executive') {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+      if (req.user.role === 'manager') {
+        query += ` WHERE u.manager_id = ? `;
+        params.push(req.user.userId);
+      }
+      query += ` ORDER BY t.scheduled_time ASC`;
+    } else {
+      query += ` WHERE t.assigned_to = ? ORDER BY t.scheduled_time ASC`;
+      params.push(userId);
+    }
+
+    db.execute(query, params, (err, results) => {
         if (err) {
             return res.status(500).json({ error: 'Database error' });
         }
