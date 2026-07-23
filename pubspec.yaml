@@ -1,0 +1,60 @@
+name: field_management_app
+description: Field Management Mobile Application
+
+# Prevent accidental publishing to pub.dev
+publish_to: 'none'
+
+# Update version for each release (version+buildNumber)
+version: 1.1.0+9
+
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # UI & Fonts
+  google_fonts: ^6.2.1
+  cupertino_icons: ^1.0.2
+
+  # Networking & Storage
+  http: ^1.2.1
+  shared_preferences: ^2.2.3
+  provider: ^6.1.1
+
+  # File operations
+  file_picker: ^8.0.0+1
+
+  # Utils
+  intl: ^0.19.0
+  geolocator: ^12.0.0
+  permission_handler: ^11.3.1
+  image_picker: ^1.1.2
+  url_launcher: ^6.3.1
+  flutter_local_notifications: ^18.0.1
+  timezone: ^0.10.0
+  http_parser: ^4.1.0
+  csv: ^6.0.0
+  pdf: ^3.11.1
+  printing: ^5.13.0
+  path_provider: ^2.1.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+
+  # Assets
+  assets:
+    - assets/images/
+
+  # If you have app icons generated, uncomment and configure:
+  # flutter_icons:
+  #   android: true
+  #   ios: true
+  #   image_path: "assets/icon/app_icon.png"

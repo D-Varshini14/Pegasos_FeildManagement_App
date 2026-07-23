@@ -1,0 +1,24 @@
+<USER_REQUEST>
+As we are actively working towards strengthening the Banking Field Executive Application, I would like to outline the key enhancements and functional corrections required. These changes are critical to ensure seamless usability, better data control, and to position the application as a complete and efficient CRM tool for both Admin and Field Executives.
+
+Kindly review the detailed points below and prioritize accordingly:
+
+1. Login Page Enhancements:
+
+“Forgot Password” option is currently missing – this needs to be enabled.
+
+Once the password is reset, the updated password must be securely stored and reflected in the database.
+
+2. User Role & Access Control:
+
+Separate interfaces required for:
+
+Admin Panel – Full access to all data, reports, and controls.
+
+Executive Panel – Restricted access, where executives can view and manage only their own data.
+
+This segregation is essential to maintain data security and structured operations.
+
+3. Homepage Improvements:
+
+<truncated 2643 bytes>

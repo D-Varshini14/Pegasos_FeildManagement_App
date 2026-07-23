@@ -1,0 +1,1132 @@
+import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
+import 'dart:io';
+import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../utils/constants.dart';
+
+class ApiService {
+  // Use dynamic baseUrl from constants
+  static String get baseUrl => AppStrings.baseUrl;
+
+  static void printDebug(String message) {
+    print('[API] $message');
+  }
+
+  // ─────────────────────────────────────────
+  // HELPERS
+  // ─────────────────────────────────────────
+
+  static Future<String?> _getToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('token');
+  }
+
+  static Future<void> logout() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('token');
+    await prefs.remove('user');
+    await prefs.clear();
+  }
+
+  static Map<String, String> _authHeaders(String token, {bool isMultipart = false}) {
+    final headers = {
+      'Authorization': 'Bearer $token',
+    };
+    if (!isMultipart) {
+      headers['Content-Type'] = 'application/json';
+    }
+    return headers;
+  }
+
+  // ─────────────────────────────────────────
+  // AUTH — REQ #1, #2
+  // ─────────────────────────────────────────
+
+  // Login
+  
+  static Future<Map<String, dynamic>> getPublicManagers() async {
+    try {
+      final response = await http
+          .get(Uri.parse('\/auth/managers'))
+          .timeout(const Duration(seconds: 10));
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: '};
+    }
+  }
+
+  static Future<Map<String, dynamic>> login(
+    String name,
+    String employeeId,
+    String password,
+  ) async {
+    try {
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/auth/login'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'employeeId': employeeId,
+              'password': password,
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
+
+      printDebug('Login status: ${response.statusCode}');
+      return jsonDecode(response.body);
+    } catch (e) {
+      printDebug('Login error: $e');
+      return {'success': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  // Signup
+  static Future<Map<String, dynamic>> signup({
+    required String name,
+    required String email,
+    required String phone,
+    required String zone,
+    required String city,
+    required String state,
+    required String role,
+    required String password,
+    int? managerId,
+    File? profileImage,
+  }) async {
+    try {
+      var request = http.MultipartRequest(
+        'POST',
+        Uri.parse('$baseUrl/auth/signup'),
+      );
+      request.fields['name'] = name;
+      request.fields['email'] = email;
+      request.fields['phone'] = phone;
+      request.fields['zone'] = zone;
+      request.fields['city'] = city;
+      request.fields['state'] = state;
+      request.fields['role'] = role;
+      request.fields['password'] = password;
+      if (managerId != null) {
+        request.fields['manager_id'] = managerId.toString();
+      }
+
+      if (profileImage != null) {
+        var stream = http.ByteStream(profileImage.openRead());
+        var length = await profileImage.length();
+        request.files.add(http.MultipartFile(
+          'profileImage',
+          stream,
+          length,
+          filename: 'profile_${DateTime.now().millisecondsSinceEpoch}.jpg',
+          contentType: MediaType('image', 'jpeg'),
+        ));
+      }
+
+      var streamedResponse = await request.send().timeout(const Duration(seconds: 15));
+      var response = await http.Response.fromStream(streamedResponse);
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  // REQ #1 — Forgot Password
+  static Future<Map<String, dynamic>> forgotPassword(String email) async {
+    try {
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/auth/forgot-password'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'email': email}),
+          )
+          .timeout(const Duration(seconds: 10));
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  // REQ #1 — Reset Password (OTP-based)
+  static Future<Map<String, dynamic>> resendOtp(String email) async {
+    try {
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/auth/resend-otp'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'email': email}),
+          )
+          .timeout(const Duration(seconds: 10));
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  static Future<Map<String, dynamic>> resetPassword(
+      String email, String otp, String newPassword) async {
+    try {
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/auth/reset-password'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'email': email,
+              'otp': otp,
+              'newPassword': newPassword,
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  // ─────────────────────────────────────────
+  // USER PROFILE — REQ #3, #12
+  // ─────────────────────────────────────────
+
+  static Future<Map<String, dynamic>> getUserProfile() async {
+    try {
+      final token = await _getToken();
+      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+
+      final response = await http
+          .get(Uri.parse('$baseUrl/user/profile'), headers: _authHeaders(token))
+          .timeout(const Duration(seconds: 10));
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  static Future<Map<String, dynamic>> updateProfile(Map<String, dynamic> data) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+
+      final response = await http
+          .put(
+            Uri.parse('$baseUrl/user/profile'),
+            headers: _authHeaders(token),
+            body: jsonEncode(data),
+          )
+          .timeout(const Duration(seconds: 10));
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  // ─────────────────────────────────────────
+  // DASHBOARD — REQ #5
+  // ─────────────────────────────────────────
+
+  // Get Total/Completed/Pending/Missed counts
+  static Future<Map<String, dynamic>> getDashboardMetrics() async {
+    try {
+      final token = await _getToken();
+      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+
+      final response = await http
+          .get(Uri.parse('$baseUrl/dashboard/metrics'), headers: _authHeaders(token))
+          .timeout(const Duration(seconds: 10));
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  // Admin specific stats
+  static Future<Map<String, dynamic>> getAdminStats() async {
+    try {
+      final token = await _getToken();
+      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+
+      final response = await http
+          .get(Uri.parse('$baseUrl/admin/dashboard/stats'), headers: _authHeaders(token))
+          .timeout(const Duration(seconds: 10));
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  static Future<Map<String, dynamic>> getExecutiveTracking() async {
+    try {
+      final token = await _getToken();
+      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+
+      final response = await http
+          .get(Uri.parse('$baseUrl/admin/dashboard/executive-tracking'), headers: _authHeaders(token))
+          .timeout(const Duration(seconds: 10));
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  // Get tasks filtered by status (for detail pages on card tap)
+  static Future<Map<String, dynamic>> getDashboardTasks({
+    String? status,
+    int page = 1,
+    int limit = 20,
+  }) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+
+      String url = '$baseUrl/dashboard/tasks?page=$page&limit=$limit';
+      if (status != null) url += '&status=$status';
+
+      final response = await http
+          .get(Uri.parse(url), headers: _authHeaders(token))
+          .timeout(const Duration(seconds: 10));
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  // ─────────────────────────────────────────
+  // TASKS — REQ #5, #7, #10, #12
+  // ─────────────────────────────────────────
+
+  static Future<Map<String, dynamic>> getTasks({String? status, bool all = false}) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+
+      String url = '$baseUrl/tasks?';
+      if (status != null) url += 'status=$status&';
+      if (all) url += 'all=true&';
+
+      final response = await http
+          .get(Uri.parse(url), headers: _authHeaders(token))
+          .timeout(const Duration(seconds: 10));
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  // REQ #10 — Update task status (includes marking as pending)
+  static Future<Map<String, dynamic>> updateTaskStatus(
+      int taskId, String status, {String? notes}) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+
+      final response = await http
+          .put(
+            Uri.parse('$baseUrl/tasks/$taskId/status'),
+            headers: _authHeaders(token),
+            body: jsonEncode({'status': status, 'notes': notes}),
+          )
+          .timeout(const Duration(seconds: 10));
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  // Edit pending task details (date, time, title, location, etc.)
+  static Future<Map<String, dynamic>> editTask(int taskId, Map<String, dynamic> data) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+
+      final response = await http
+          .put(
+            Uri.parse('$baseUrl/tasks/$taskId/edit'),
+            headers: _authHeaders(token),
+            body: jsonEncode(data),
+          )
+          .timeout(const Duration(seconds: 10));
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  // REQ #10 — Delete task
+  static Future<Map<String, dynamic>> deleteTask(int taskId) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+
+      final response = await http
+          .delete(Uri.parse('$baseUrl/tasks/$taskId'), headers: _authHeaders(token))
+          .timeout(const Duration(seconds: 10));
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  // CREATE TASK (Admin)
+  static Future<Map<String, dynamic>> createTask(Map<String, dynamic> taskData) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/tasks'),
+            headers: _authHeaders(token),
+            body: jsonEncode(taskData),
+          )
+          .timeout(const Duration(seconds: 10));
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  // ─────────────────────────────────────────
+  // CLIENTS — REQ #6 (Auto-fetch)
+  // ─────────────────────────────────────────
+
+  static Future<Map<String, dynamic>> searchClients(String query) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/clients/search?q=$query'),
+            headers: _authHeaders(token),
+          )
+          .timeout(const Duration(seconds: 10));
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  static Future<Map<String, dynamic>> getClients() async {
+    try {
+      final token = await _getToken();
+      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+
+      final response = await http
+          .get(Uri.parse('$baseUrl/clients'), headers: _authHeaders(token))
+          .timeout(const Duration(seconds: 10));
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  // ─────────────────────────────────────────
+  // VISITS — REQ #7, #9
+  // ─────────────────────────────────────────
+
+  static Future<Map<String, dynamic>> getVisits() async {
+    try {
+      final token = await _getToken();
+      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+
+      final response = await http
+          .get(Uri.parse('$baseUrl/visits'), headers: _authHeaders(token))
+          .timeout(const Duration(seconds: 10));
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  static Future<Map<String, dynamic>> deleteVisit(int visitId) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+
+      final response = await http
+          .delete(Uri.parse('$baseUrl/visits/$visitId'), headers: _authHeaders(token))
+          .timeout(const Duration(seconds: 10));
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  // REQ #7 — Create visit with "title" (not "purpose")
+  static Future<Map<String, dynamic>> createVisit({
+    required String title,
+    int? taskId,
+    int? clientId,
+    String? clientName,
+    String? notes,
+    DateTime? scheduledTime,
+  }) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/visits'),
+            headers: _authHeaders(token),
+            body: jsonEncode({
+              'title': title,
+              'task_id': taskId,
+              'client_id': clientId,
+              'client_name': clientName,
+              'notes': notes,
+              'scheduled_time': scheduledTime?.toIso8601String(),
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  // UPDATE VISIT STATUS
+  static Future<Map<String, dynamic>> updateVisitStatus(
+      int visitId, String status, {String? notes}) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+
+      final response = await http
+          .put(
+            Uri.parse('$baseUrl/visits/$visitId/status'),
+            headers: _authHeaders(token),
+            body: jsonEncode({'status': status, 'notes': notes}),
+          )
+          .timeout(const Duration(seconds: 10));
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  // REQ #9 — GPS Check-in
+  static Future<Map<String, dynamic>> checkIn({
+    required int visitId,
+    required double lat,
+    required double lng,
+    String? address,
+  }) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/visits/$visitId/checkin'),
+            headers: _authHeaders(token),
+            body: jsonEncode({'lat': lat, 'lng': lng, 'address': address}),
+          )
+          .timeout(const Duration(seconds: 10));
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  // REQ #7 — Mail It
+  static Future<Map<String, dynamic>> mailVisit({
+    required int visitId,
+    required String toEmail,
+    String? toName,
+  }) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/visits/$visitId/mail'),
+            headers: _authHeaders(token),
+            body: jsonEncode({'toEmail': toEmail, 'toName': toName}),
+          )
+          .timeout(const Duration(seconds: 10));
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  // ─────────────────────────────────────────
+  // LEADS — REQ #8
+  // ─────────────────────────────────────────
+
+  static Future<Map<String, dynamic>> getLeads({String? status}) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+
+      String url = '$baseUrl/leads';
+      if (status != null) url += '?status=$status';
+
+      final response = await http
+          .get(Uri.parse(url), headers: _authHeaders(token))
+          .timeout(const Duration(seconds: 10));
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  static Future<Map<String, dynamic>> updateLeadStatus(
+      int leadId, String status, {String? notes}) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+
+      final response = await http
+          .put(
+            Uri.parse('$baseUrl/leads/$leadId/status'),
+            headers: _authHeaders(token),
+            body: jsonEncode({'status': status, 'notes': notes}),
+          )
+          .timeout(const Duration(seconds: 10));
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  static Future<Map<String, dynamic>> updateLeadClassification(
+      int leadId, String classification) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+
+      final response = await http
+          .put(
+            Uri.parse('$baseUrl/leads/$leadId/classification'),
+            headers: _authHeaders(token),
+            body: jsonEncode({'classification': classification}),
+          )
+          .timeout(const Duration(seconds: 10));
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  static Future<Map<String, dynamic>> getLeadProposals(int leadId) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+
+      final response = await http
+          .get(Uri.parse('$baseUrl/leads/$leadId/proposals'), headers: _authHeaders(token))
+          .timeout(const Duration(seconds: 10));
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  static Future<Map<String, dynamic>> uploadLeadProposal(int leadId, List<int> fileBytes, String fileName) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+
+      var request = http.MultipartRequest('POST', Uri.parse('$baseUrl/leads/$leadId/proposals'));
+      request.headers.addAll(_authHeaders(token, isMultipart: true));
+      
+      request.files.add(http.MultipartFile.fromBytes('proposal_file', fileBytes, filename: fileName));
+
+      var streamedResponse = await request.send();
+      var response = await http.Response.fromStream(streamedResponse);
+      
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  static Future<Map<String, dynamic>> updateProposalStatus(int proposalId, String status) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+
+      final response = await http
+          .put(
+            Uri.parse('$baseUrl/proposals/$proposalId/status'),
+            headers: _authHeaders(token),
+            body: jsonEncode({'status': status}),
+          )
+          .timeout(const Duration(seconds: 10));
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  static Future<http.Response> downloadProposal(int proposalId) async {
+    final token = await _getToken();
+    return http.get(Uri.parse('$baseUrl/proposals/$proposalId/download'), headers: _authHeaders(token ?? ''));
+  }
+
+  static Future<Map<String, dynamic>> createLead(Map<String, dynamic> leadData) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/leads'),
+            headers: _authHeaders(token),
+            body: jsonEncode(leadData),
+          )
+          .timeout(const Duration(seconds: 10));
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  static Future<Map<String, dynamic>> deleteLead(int leadId) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+
+      final response = await http
+          .delete(Uri.parse('$baseUrl/leads/$leadId'), headers: _authHeaders(token))
+          .timeout(const Duration(seconds: 10));
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  // ─────────────────────────────────────────
+  // NOTIFICATIONS — REQ #4
+  // ─────────────────────────────────────────
+
+  static Future<Map<String, dynamic>> getNotifications() async {
+    try {
+      final token = await _getToken();
+      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+
+      final response = await http
+          .get(Uri.parse('$baseUrl/notifications'), headers: _authHeaders(token))
+          .timeout(const Duration(seconds: 10));
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  static Future<Map<String, dynamic>> markNotificationRead(int notifId) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+
+      final response = await http
+          .put(
+            Uri.parse('$baseUrl/notifications/$notifId/read'),
+            headers: _authHeaders(token),
+          )
+          .timeout(const Duration(seconds: 10));
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  static Future<Map<String, dynamic>> markAllNotificationsRead() async {
+    try {
+      final token = await _getToken();
+      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+
+      final response = await http
+          .put(
+            Uri.parse('$baseUrl/notifications/read-all'),
+            headers: _authHeaders(token),
+          )
+          .timeout(const Duration(seconds: 10));
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  // Lightweight unread count for polling
+  static Future<Map<String, dynamic>> getUnreadNotificationCount() async {
+    try {
+      final token = await _getToken();
+      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+
+      final response = await http
+          .get(Uri.parse('$baseUrl/notifications/unread-count'), headers: _authHeaders(token))
+          .timeout(const Duration(seconds: 5));
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: $e'};
+    }
+  }
+  // ─────────────────────────────────────────
+  // COMMUNICATION — REQ #11
+  // ─────────────────────────────────────────
+
+  // Returns tel: URL for phone dialer
+  static Future<Map<String, dynamic>> initiateCall({
+    required String clientPhone,
+    String? clientName,
+  }) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/communication/call'),
+            headers: _authHeaders(token),
+            body: jsonEncode({'clientPhone': clientPhone, 'clientName': clientName}),
+          )
+          .timeout(const Duration(seconds: 10));
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  // Send email to client
+  static Future<Map<String, dynamic>> sendEmail({
+    required String toEmail,
+    String? toName,
+    required String subject,
+    required String message,
+  }) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/communication/email'),
+            headers: _authHeaders(token),
+            body: jsonEncode({
+              'toEmail': toEmail,
+              'toName': toName,
+              'subject': subject,
+              'message': message,
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  // ─────────────────────────────────────────
+  // LEAVES
+  // ─────────────────────────────────────────
+
+  static Future<Map<String, dynamic>> applyLeave(Map<String, dynamic> leaveData) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/leaves'),
+            headers: _authHeaders(token),
+            body: jsonEncode(leaveData),
+          )
+          .timeout(const Duration(seconds: 10));
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  static Future<Map<String, dynamic>> getLeaves() async {
+    try {
+      final token = await _getToken();
+      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+
+      final response = await http
+          .get(Uri.parse('$baseUrl/leaves'), headers: _authHeaders(token))
+          .timeout(const Duration(seconds: 10));
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  // ─────────────────────────────────────────
+  // ADMIN & MANAGER
+  // ─────────────────────────────────────────
+
+  static Future<Map<String, dynamic>> getExecutives() async {
+    try {
+      final token = await _getToken();
+      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+
+      final response = await http
+          .get(Uri.parse('$baseUrl/admin/executives'), headers: _authHeaders(token))
+          .timeout(const Duration(seconds: 10));
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  static Future<Map<String, dynamic>> getManagers() async {
+    try {
+      final token = await _getToken();
+      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+
+      final response = await http
+          .get(Uri.parse('$baseUrl/admin/managers'), headers: _authHeaders(token))
+          .timeout(const Duration(seconds: 10));
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  static Future<Map<String, dynamic>> assignManager(int executiveId, int? managerId) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+
+      final response = await http
+          .put(
+            Uri.parse('$baseUrl/admin/executives/$executiveId/assign-manager'),
+            headers: _authHeaders(token),
+            body: jsonEncode({'manager_id': managerId}),
+          )
+          .timeout(const Duration(seconds: 10));
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  // Get tasks for a specific executive
+  static Future<Map<String, dynamic>> getExecutiveTasks(int executiveId, {String? status}) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+
+      String url = '$baseUrl/admin/dashboard/executive-tasks/$executiveId';
+      if (status != null) url += '?status=$status';
+
+      final response = await http
+          .get(Uri.parse(url), headers: _authHeaders(token))
+          .timeout(const Duration(seconds: 10));
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  // Admin update task details
+  static Future<Map<String, dynamic>> adminUpdateTask(int taskId, Map<String, dynamic> data) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+
+      final response = await http
+          .put(
+            Uri.parse('$baseUrl/admin/dashboard/tasks/$taskId'),
+            headers: _authHeaders(token),
+            body: jsonEncode(data),
+          )
+          .timeout(const Duration(seconds: 10));
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  // ─────────────────────────────────────────
+  // EXPORTS (Phase 4)
+  // ─────────────────────────────────────────
+
+  static Future<Uint8List?> downloadExport(String entity) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return null;
+
+      final response = await http
+          .get(Uri.parse('$baseUrl/export/$entity'), headers: _authHeaders(token))
+          .timeout(const Duration(seconds: 30));
+
+      if (response.statusCode == 200) {
+        return response.bodyBytes;
+      }
+      printDebug('Export failed with status: ${response.statusCode}');
+      return null;
+    } catch (e) {
+      printDebug('Export error: $e');
+      return null;
+    }
+  }
+
+  // Health check
+  static Future<bool> testConnection() async {
+    try {
+      final response = await http
+          .get(Uri.parse('http://localhost:3000/api/health'))
+          .timeout(const Duration(seconds: 5));
+      return response.statusCode == 200;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // ─────────────────────────────────────────
+  // EXPENSES (Phase 9)
+  // ─────────────────────────────────────────
+
+  static Future<Map<String, dynamic>> getExpenses({int? userId, bool all = false}) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+
+      String url = '$baseUrl/expenses';
+      if (all) {
+        url += '?all=true';
+      } else if (userId != null) {
+        url += '?user_id=$userId';
+      }
+
+      final response = await http
+          .get(Uri.parse(url), headers: _authHeaders(token))
+          .timeout(const Duration(seconds: 10));
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  static Future<Map<String, dynamic>> getExpense(int id) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+
+      final response = await http
+          .get(Uri.parse('$baseUrl/expenses/$id'), headers: _authHeaders(token))
+          .timeout(const Duration(seconds: 10));
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  static Future<Map<String, dynamic>> createExpense(String title) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/expenses'),
+            headers: _authHeaders(token),
+            body: jsonEncode({'title': title}),
+          )
+          .timeout(const Duration(seconds: 10));
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  static Future<Map<String, dynamic>> deleteExpense(int id) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+
+      final response = await http
+          .delete(
+            Uri.parse('$baseUrl/expenses/$id'),
+            headers: _authHeaders(token),
+          )
+          .timeout(const Duration(seconds: 10));
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  static Future<Map<String, dynamic>> updateExpenseStatus(int id, String status, double amountClaimed) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+
+      final response = await http
+          .put(
+            Uri.parse('$baseUrl/expenses/$id/status'),
+            headers: _authHeaders(token),
+            body: jsonEncode({'status': status, 'amount_claimed': amountClaimed}),
+          )
+          .timeout(const Duration(seconds: 10));
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  // ─────────────────────────────────────────
+  // EXPENSE FORMS (Items)
+  // ─────────────────────────────────────────
+
+  static Future<Map<String, dynamic>> addExpenseForm({
+    required int expenseId,
+    required String category,
+    required double amount,
+    required String description,
+    List<Map<String, dynamic>>? attachments, // Expected { bytes, name }
+  }) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+
+      var request = http.MultipartRequest('POST', Uri.parse('$baseUrl/expenses/forms'));
+      request.headers.addAll(_authHeaders(token, isMultipart: true));
+
+      request.fields['expense_id'] = expenseId.toString();
+      request.fields['category'] = category;
+      request.fields['amount'] = amount.toString();
+      request.fields['description'] = description;
+
+      if (attachments != null) {
+        for (var fileData in attachments) {
+          if (fileData['bytes'] != null && fileData['name'] != null) {
+            request.files.add(http.MultipartFile.fromBytes(
+              'attachments',
+              fileData['bytes'],
+              filename: fileData['name'],
+            ));
+          }
+        }
+      }
+
+      var streamedResponse = await request.send();
+      var response = await http.Response.fromStream(streamedResponse);
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: $e'};
+    }
+  }
+
+  static Future<Map<String, dynamic>> deleteExpenseForm(int formId) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+
+      final response = await http
+          .delete(Uri.parse('$baseUrl/expenses/forms/$formId'), headers: _authHeaders(token))
+          .timeout(const Duration(seconds: 10));
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Network error: $e'};
+    }
+  }
+}
