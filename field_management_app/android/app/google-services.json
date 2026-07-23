@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "31447753661",
+    "project_id": "field-management-app-463cf",
+    "storage_bucket": "field-management-app-463cf.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:31447753661:android:ce771a5f014871b80ae8d4",
+        "android_client_info": {
+          "package_name": "com.example.field_management_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCmpvbNj0Vg5QCiD-P69iRoBGra3Fdr5aA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

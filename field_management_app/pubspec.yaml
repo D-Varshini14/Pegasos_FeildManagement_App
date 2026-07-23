@@ -1,0 +1,215 @@
+###name: field_management_app
+###description: Field Management Mobile Application
+###
+###publish_to: 'none'
+###version: 1.0.0+1
+###
+###environment:
+###  sdk: '>=3.0.0 <4.0.0'
+###
+###dependencies:
+###  flutter:
+###    sdk: flutter
+###    file_picker: ^6.1.1
+###    intl: ^0.18.0
+###
+###  # UI & Fonts
+###  google_fonts: ^6.2.1
+###  cupertino_icons: ^1.0.2
+###
+###  # Networking & Storage
+###  http: ^1.2.1
+###  shared_preferences: ^2.2.3
+###  provider: ^6.1.1
+###
+###  # Firebase (latest stable versions you added)
+###  firebase_core: ^3.6.0
+###  firebase_auth: ^5.3.1
+###  firebase_messaging: ^15.1.3
+###
+###  # Notifications
+###  flutter_local_notifications: ^17.2.4
+###
+###  # Utils
+###  intl: ^0.19.0
+###  geolocator: ^12.0.0
+###  permission_handler: ^11.3.1
+###  image_picker: ^1.0.8
+###  url_launcher: ^6.3.1
+###
+###dev_dependencies:
+###  flutter_test:
+###    sdk: flutter
+###  flutter_lints: ^4.0.0
+###
+###flutter:
+###  uses-material-design: true
+###  assets:
+###    - assets/images/
+##
+##name: field_management_app
+##description: Field Management Mobile Application
+##
+##publish_to: 'none'
+##version: 1.0.0+1
+##
+##environment:
+##  sdk: '>=3.0.0 <4.0.0'
+##
+##dependencies:
+##  flutter:
+##    sdk: flutter
+##
+##  # UI & Fonts
+##  google_fonts: ^6.2.1
+##  cupertino_icons: ^1.0.2
+##
+##  # Networking & Storage
+##  http: ^1.2.1
+##  shared_preferences: ^2.2.3
+##  provider: ^6.1.1
+##
+##  # File operations
+###  file_picker: ^6.1.1
+##
+##  # Firebase (latest stable versions)
+##  firebase_core: ^3.6.0
+##  firebase_auth: ^5.3.1
+##  firebase_messaging: ^15.1.3
+##
+##  # Notifications
+##  flutter_local_notifications: ^17.2.4
+##
+##  # Utils
+##  intl: ^0.19.0
+##  geolocator: ^12.0.0
+##  permission_handler: ^11.3.1
+##  image_picker: ^1.0.8
+##  url_launcher: ^6.3.1
+##
+##dev_dependencies:
+##  flutter_test:
+##    sdk: flutter
+##  flutter_lints: ^4.0.0
+##
+##flutter:
+##  uses-material-design: true
+##  assets:
+##    - assets/images/
+#
+#name: field_management_app
+#description: Field Management Mobile Application
+#
+#publish_to: 'none'
+#version: 1.0.0+1
+#
+#environment:
+#  sdk: '>=3.0.0 <4.0.0'
+#
+##dependencies:
+##  flutter:
+##    sdk: flutter
+##      file_picker: ^8.0.0+1
+#
+#  dependencies:
+#    flutter:
+#      sdk: flutter
+#    shared_preferences: ^2.2.2
+#    intl: ^0.18.1
+#    file_picker: ^8.0.0+1  # Add this line
+#
+#  # UI & Fonts
+#  google_fonts: ^6.2.1
+#  cupertino_icons: ^1.0.2
+#
+#  # Networking & Storage
+#  http: ^1.2.1
+#  shared_preferences: ^2.2.3
+#  provider: ^6.1.1
+#
+#  # File operations - Add this when you want actual file picker functionality
+#  # file_picker: ^6.1.1
+#
+#  # Firebase (latest stable versions)
+#  firebase_core: ^3.6.0
+#  firebase_auth: ^5.3.1
+#  firebase_messaging: ^15.1.3
+#
+#  # Notifications
+#  flutter_local_notifications: ^17.2.4
+#
+#  # Utils
+#  intl: ^0.19.0
+#  geolocator: ^12.0.0
+#  permission_handler: ^11.3.1
+#  image_picker: ^1.0.8
+#  url_launcher: ^6.3.1
+#
+#dev_dependencies:
+#  flutter_test:
+#    sdk: flutter
+#  flutter_lints: ^4.0.0
+#
+#
+#flutter:
+#  uses-material-design: true
+#  assets:
+#    - assets/images/
+
+
+
+
+
+name: field_management_app
+description: Field Management Mobile Application
+
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # UI & Fonts
+  google_fonts: ^6.2.1
+  cupertino_icons: ^1.0.2
+
+  # Networking & Storage
+  http: ^1.2.1
+  shared_preferences: ^2.2.3
+  provider: ^6.1.1
+
+  # File operations
+  file_picker: ^8.0.0+1
+
+  # Firebase (latest stable versions)
+  firebase_core: ^3.6.0
+  firebase_auth: ^5.3.1
+  firebase_messaging: ^15.1.3
+
+  # Notifications
+  flutter_local_notifications: ^17.2.4
+
+  # Utils
+  intl: ^0.19.0
+  geolocator: ^12.0.0
+  permission_handler: ^11.3.1
+  image_picker: ^1.0.8
+  url_launcher: ^6.3.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
+
+
+
+
