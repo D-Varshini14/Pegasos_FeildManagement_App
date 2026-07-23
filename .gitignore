@@ -17,3 +17,4 @@ field_management_app/android/app/build/
 field_management_app/ios/Pods/
 field_management_app/ios/Runner.xcworkspace/
 field_management_backend/config/firebase-service-account.json
+field_management_backend/config/firebase-service-account.json 
