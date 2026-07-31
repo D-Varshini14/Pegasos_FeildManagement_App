@@ -939,7 +939,7 @@ class _AddVisitScreenState extends State<AddVisitScreen> with TickerProviderStat
           'title': _purposeController.text.trim(),
           'client_id': _selectedClientId,
           'client_name': _clientNameController.text.trim(),
-          'type': 'visit', // Setting type to visit
+          'type': 'follow_up', // Changed from 'visit' to match backend task types
           'notes': _notesController.text.trim(),
           'scheduled_time': visitDateTime.toIso8601String(),
           'location': _locationController.text.trim()
@@ -1169,7 +1169,6 @@ class _AddVisitScreenState extends State<AddVisitScreen> with TickerProviderStat
                   },
                 ),
                 const SizedBox(height: 20),
-
                 // LOCATION
                 Stack(
                   alignment: Alignment.centerRight,

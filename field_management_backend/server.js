@@ -986,6 +986,15 @@ app.post('/api/tasks', authenticateToken, async (req, res) => {
         const isManager = req.user.role === 'manager';
         const { title, description, type, assigned_to, client_id, client_name, location, scheduled_time } = req.body;
 
+        let finalType = type;
+        if (type === 'visit') {
+            finalType = 'follow_up';
+        }
+        const validTaskTypes = ['site_evaluation', 'document_collection', 'follow_up', 'meeting'];
+        if (!validTaskTypes.includes(finalType)) {
+            return res.status(400).json({ success: false, message: `Invalid task type "${type}". Valid values are ${validTaskTypes.join(', ')}` });
+        }
+
         // Managers can only assign to their FEs
         if (isManager && assigned_to) {
             const [check] = await db.execute('SELECT manager_id FROM users WHERE id = ?', [assigned_to]);
