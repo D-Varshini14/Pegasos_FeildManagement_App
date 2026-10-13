@@ -1,14 +1,16 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import '../utils/app_typography.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'add_visit_screen.dart';
 import 'expense_screen.dart';
-import 'expense_form_screen.dart';
 import 'client_summary_screen.dart';
 import 'notifications_screen.dart';
 import '../services/api_service.dart';
+import 'package:provider/provider.dart';
+import '../providers/theme_provider.dart';
 
 class TasksScreen extends StatefulWidget {
   final String? initialFilter;
@@ -18,7 +20,8 @@ class TasksScreen extends StatefulWidget {
   State<TasksScreen> createState() => _TasksScreenState();
 }
 
-class _TasksScreenState extends State<TasksScreen> with TickerProviderStateMixin {
+class _TasksScreenState extends State<TasksScreen>
+    with TickerProviderStateMixin {
   List<Visit> visits = [];
   bool isLoading = true;
   TabController? _tabController;
@@ -56,7 +59,8 @@ class _TasksScreenState extends State<TasksScreen> with TickerProviderStateMixin
 
       if (userString != null) {
         final userData = jsonDecode(userString);
-        _userId = userData['employeeId'] ?? userData['id']?.toString() ?? 'default';
+        _userId =
+            userData['employeeId'] ?? userData['id']?.toString() ?? 'default';
       } else {
         _userId = 'default';
       }
@@ -143,15 +147,6 @@ class _TasksScreenState extends State<TasksScreen> with TickerProviderStateMixin
     }
   }
 
-  Future<void> _addVisit(Visit visit) async {
-    setState(() {
-      visits.add(visit);
-      visits.sort((a, b) => a.visitTime.compareTo(b.visitTime));
-    });
-    await _saveVisits();
-    debugPrint('✅ Visit added: ${visit.clientName}');
-  }
-
   // Mark task as completed with current timestamp
   Future<void> _markAsCompleted(Visit visit) async {
     if (visit.id == null) {
@@ -161,34 +156,12 @@ class _TasksScreenState extends State<TasksScreen> with TickerProviderStateMixin
 
     setState(() => isLoading = true);
     try {
-      final response = await ApiService.updateTaskStatus(visit.id!, 'completed');
-          
+      final response =
+          await ApiService.updateTaskStatus(visit.id!, 'completed');
+
       if (response['success'] == true) {
         await _loadVisits(); // Refresh list from API
         debugPrint('✅ Visit marked as completed on backend');
-      } else {
-        _showErrorSnackBar(response['message'] ?? 'Failed to update status');
-      }
-    } catch (e) {
-      _showErrorSnackBar('Network error: $e');
-    } finally {
-      setState(() => isLoading = false);
-    }
-  }
-
-  Future<void> _updateVisitStatus(Visit visit, String newStatus) async {
-    if (visit.id == null) {
-      _showErrorSnackBar('Cannot update task without ID');
-      return;
-    }
-
-    setState(() => isLoading = true);
-    try {
-      final response = await ApiService.updateTaskStatus(visit.id!, newStatus);
-          
-      if (response['success'] == true) {
-        await _loadVisits(); // Refresh list from API
-        debugPrint('✅ Visit status updated on backend: ${visit.clientName} -> $newStatus');
       } else {
         _showErrorSnackBar(response['message'] ?? 'Failed to update status');
       }
@@ -241,16 +214,20 @@ class _TasksScreenState extends State<TasksScreen> with TickerProviderStateMixin
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Logout', style: TextStyle(color: Colors.white)),
+            child: Text('Logout',
+                style: AppTypography.buttonMedium.copyWith(
+                  color: Colors.white,
+                )),
           ),
         ],
       ),
     );
 
     if (confirmed == true) {
-      await ApiService.logout();
+      await ApiService.performLogoutWithActivity();
       if (mounted) {
-        Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+        Navigator.of(context)
+            .pushNamedAndRemoveUntil('/login', (route) => false);
       }
     }
   }
@@ -291,11 +268,15 @@ class _TasksScreenState extends State<TasksScreen> with TickerProviderStateMixin
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('Delete Visit'),
-        content: Text('Are you sure you want to delete the visit with ${visit.clientName}?'),
+        content: Text(
+            'Are you sure you want to delete the visit with ${visit.clientName}?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text('Cancel', style: TextStyle(color: Colors.grey[600])),
+            child: Text('Cancel',
+                style: AppTypography.secondary.copyWith(
+                  color: Colors.grey[600],
+                )),
           ),
           ElevatedButton(
             onPressed: () {
@@ -304,9 +285,13 @@ class _TasksScreenState extends State<TasksScreen> with TickerProviderStateMixin
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)),
             ),
-            child: const Text('Delete', style: TextStyle(color: Colors.white)),
+            child: Text('Delete',
+                style: AppTypography.buttonMedium.copyWith(
+                  color: Colors.white,
+                )),
           ),
         ],
       ),
@@ -322,18 +307,24 @@ class _TasksScreenState extends State<TasksScreen> with TickerProviderStateMixin
     switch (selectedFilter) {
       case 'Today':
         filtered = visits.where((visit) {
-          final visitDate = DateTime(visit.visitTime.year, visit.visitTime.month, visit.visitTime.day);
+          final visitDate = DateTime(
+              visit.visitTime.year, visit.visitTime.month, visit.visitTime.day);
           return visitDate == today && visit.status == 'pending';
         }).toList();
         break;
       case 'Upcoming':
         filtered = visits.where((visit) {
-          final visitDate = DateTime(visit.visitTime.year, visit.visitTime.month, visit.visitTime.day);
+          final visitDate = DateTime(
+              visit.visitTime.year, visit.visitTime.month, visit.visitTime.day);
           return visitDate.isAfter(today) && visit.status == 'pending';
         }).toList();
         break;
       case 'Completed':
-        filtered = visits.where((visit) => visit.status == 'completed' || visit.status == 'successfully_met').toList();
+        filtered = visits
+            .where((visit) =>
+                visit.status == 'completed' ||
+                visit.status == 'successfully_met')
+            .toList();
         break;
       case 'Missed':
         filtered = visits.where((visit) => visit.status == 'missed').toList();
@@ -345,7 +336,9 @@ class _TasksScreenState extends State<TasksScreen> with TickerProviderStateMixin
     // Then apply search query
     if (_searchQuery.isNotEmpty) {
       filtered = filtered.where((visit) {
-        return visit.clientName.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+        return visit.clientName
+                .toLowerCase()
+                .contains(_searchQuery.toLowerCase()) ||
             visit.purpose.toLowerCase().contains(_searchQuery.toLowerCase()) ||
             visit.location.toLowerCase().contains(_searchQuery.toLowerCase());
       }).toList();
@@ -366,13 +359,6 @@ class _TasksScreenState extends State<TasksScreen> with TickerProviderStateMixin
   }
 
   void _navigateToExpense() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const ExpenseScreen()),
-    );
-  }
-
-  void _navigateToExpenseForm() {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const ExpenseScreen()),
@@ -518,10 +504,12 @@ class _TasksScreenState extends State<TasksScreen> with TickerProviderStateMixin
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    
     return Scaffold(
-      backgroundColor: lightGray,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: primaryBlue,
+        backgroundColor: Theme.of(context).primaryColor,
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_outlined, color: Colors.white),
@@ -537,13 +525,26 @@ class _TasksScreenState extends State<TasksScreen> with TickerProviderStateMixin
         ),
         actions: [
           IconButton(
+            icon: Icon(
+              themeProvider.isDarkMode
+                  ? Icons.dark_mode
+                  : Icons.light_mode,
+              color: themeProvider.isDarkMode
+                  ? const Color(0xFFFBBF24)
+                  : const Color(0xFFF59E0B),
+              size: 24,
+            ),
+            onPressed: () => themeProvider.toggleTheme(),
+          ),
+          IconButton(
             icon: const Icon(Icons.logout, color: Colors.white, size: 24),
             onPressed: () => _logout(context),
           ),
           IconButton(
             icon: Stack(
               children: [
-                const Icon(Icons.notifications_outlined, color: Colors.white, size: 24),
+                const Icon(Icons.notifications_outlined,
+                    color: Colors.white, size: 24),
                 Positioned(
                   right: 2,
                   top: 2,
@@ -561,7 +562,8 @@ class _TasksScreenState extends State<TasksScreen> with TickerProviderStateMixin
             onPressed: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => const NotificationsScreen()),
+                MaterialPageRoute(
+                    builder: (context) => const NotificationsScreen()),
               );
             },
           ),
@@ -570,97 +572,122 @@ class _TasksScreenState extends State<TasksScreen> with TickerProviderStateMixin
       body: Column(
         children: [
           Container(
-            color: primaryBlue,
+            color: Theme.of(context).primaryColor,
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            child: TextField(
-              controller: _searchController,
-              onChanged: (value) {
-                setState(() {
-                  _searchQuery = value;
-                });
-              },
-              decoration: InputDecoration(
-                hintText: 'Search by client name, purpose or location',
-                hintStyle: TextStyle(color: Colors.grey[500], fontSize: 14),
-                prefixIcon: Icon(Icons.search, color: Colors.grey[500], size: 20),
-                suffixIcon: _searchQuery.isNotEmpty
-                    ? IconButton(
-                  icon: Icon(Icons.clear, color: Colors.grey[500], size: 20),
-                  onPressed: () {
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1000),
+                child: TextField(
+                  controller: _searchController,
+                  onChanged: (value) {
                     setState(() {
-                      _searchController.clear();
-                      _searchQuery = '';
+                      _searchQuery = value;
                     });
                   },
-                )
-                    : null,
-                filled: true,
-                fillColor: Colors.white,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(25),
-                  borderSide: BorderSide.none,
+                  decoration: InputDecoration(
+                    hintText: 'Search by client name, purpose or location',
+                    hintStyle: TextStyle(color: Colors.grey[500], fontSize: 14),
+                    prefixIcon:
+                        Icon(Icons.search, color: Colors.grey[500], size: 20),
+                    suffixIcon: _searchQuery.isNotEmpty
+                        ? IconButton(
+                            icon: Icon(Icons.clear,
+                                color: Colors.grey[500], size: 20),
+                            onPressed: () {
+                              setState(() {
+                                _searchController.clear();
+                                _searchQuery = '';
+                              });
+                            },
+                          )
+                        : null,
+                    filled: true,
+                    fillColor: Colors.white,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(25),
+                      borderSide: BorderSide.none,
+                    ),
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  ),
                 ),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               ),
             ),
           ),
           Container(
-            color: lightGray,
+            color: Theme.of(context).scaffoldBackgroundColor,
             padding: const EdgeInsets.symmetric(vertical: 12),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                children: ['All', 'Today', 'Upcoming', 'Completed', 'Missed']
-                    .map((filter) => GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      selectedFilter = filter;
-                    });
-                  },
-                  child: Container(
-                    margin: const EdgeInsets.only(right: 12),
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: selectedFilter == filter ? primaryBlue : Colors.transparent,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      filter,
-                      style: TextStyle(
-                        color: selectedFilter == filter ? Colors.white : Colors.grey[600],
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1000),
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(
+                    children: ['All', 'Today', 'Upcoming', 'Completed', 'Missed']
+                        .map((filter) => GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  selectedFilter = filter;
+                                });
+                              },
+                              child: Container(
+                                margin: const EdgeInsets.only(right: 12),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 20, vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: selectedFilter == filter
+                                      ? Theme.of(context).primaryColor
+                                      : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Text(
+                                  filter,
+                                  style: TextStyle(
+                                    color: selectedFilter == filter
+                                        ? Colors.white
+                                        : Colors.grey[600],
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                            ))
+                        .toList(),
                   ),
-                ))
-                    .toList(),
+                ),
               ),
             ),
           ),
           Expanded(
-            child: isLoading
-                ? const Center(child: CircularProgressIndicator(color: primaryBlue))
-                : _getFilteredTasks().isEmpty
-                ? _buildEmptyState()
-                : RefreshIndicator(
-              onRefresh: _loadVisits,
-              child: ListView.separated(
-                padding: const EdgeInsets.all(16),
-                itemCount: _getFilteredTasks().length,
-                separatorBuilder: (context, index) => const SizedBox(height: 12),
-                itemBuilder: (context, index) {
-                  final visit = _getFilteredTasks()[index];
-                  return _buildTaskCard(visit);
-                },
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1000),
+                child: isLoading
+                    ? const Center(
+                        child: CircularProgressIndicator(color: primaryBlue))
+                    : _getFilteredTasks().isEmpty
+                        ? _buildEmptyState()
+                        : RefreshIndicator(
+                            onRefresh: _loadVisits,
+                            child: ListView.separated(
+                              padding: const EdgeInsets.all(16),
+                              itemCount: _getFilteredTasks().length,
+                              separatorBuilder: (context, index) =>
+                                  const SizedBox(height: 12),
+                              itemBuilder: (context, index) {
+                                final visit = _getFilteredTasks()[index];
+                                return _buildTaskCard(visit);
+                              },
+                            ),
+                          ),
               ),
             ),
           ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        backgroundColor: primaryBlue,
+        backgroundColor: Theme.of(context).primaryColor,
         onPressed: () async {
           final result = await Navigator.push(
             context,
@@ -707,7 +734,6 @@ class _TasksScreenState extends State<TasksScreen> with TickerProviderStateMixin
                   label: 'Expense',
                   onTap: _navigateToExpense,
                 ),
-
                 _buildBottomNavItem(
                   icon: Icons.people_outline,
                   label: 'Client Summary',
@@ -759,9 +785,7 @@ class _TasksScreenState extends State<TasksScreen> with TickerProviderStateMixin
           Icon(Icons.assignment_outlined, size: 64, color: Colors.grey[400]),
           const SizedBox(height: 20),
           Text(
-            _searchQuery.isNotEmpty
-                ? 'No results found'
-                : 'No Tasks Found',
+            _searchQuery.isNotEmpty ? 'No results found' : 'No Tasks Found',
             style: const TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w600,
@@ -773,8 +797,8 @@ class _TasksScreenState extends State<TasksScreen> with TickerProviderStateMixin
             _searchQuery.isNotEmpty
                 ? 'Try searching with different keywords'
                 : selectedFilter == 'All'
-                ? 'No tasks scheduled yet.\nTap + to add your first visit.'
-                : 'No $selectedFilter tasks found.',
+                    ? 'No tasks scheduled yet.\nTap + to add your first visit.'
+                    : 'No $selectedFilter tasks found.',
             style: TextStyle(
               fontSize: 14,
               color: Colors.grey[600],
@@ -789,7 +813,8 @@ class _TasksScreenState extends State<TasksScreen> with TickerProviderStateMixin
 
   Widget _buildTaskCard(Visit visit) {
     final isToday = _isToday(visit.visitTime);
-    final isCompleted = visit.status == 'completed' || visit.status == 'successfully_met';
+    final isCompleted =
+        visit.status == 'completed' || visit.status == 'successfully_met';
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -818,17 +843,17 @@ class _TasksScreenState extends State<TasksScreen> with TickerProviderStateMixin
                         Expanded(
                           child: Text(
                             visit.clientName,
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600,
+                            style: AppTypography.cardTitle.copyWith(
                               color: Colors.black,
                             ),
                           ),
                         ),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
-                            color: _getStatusColor(visit.status).withOpacity(0.1),
+                            color:
+                                _getStatusColor(visit.status).withOpacity(0.1),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Text(
@@ -845,7 +870,9 @@ class _TasksScreenState extends State<TasksScreen> with TickerProviderStateMixin
                     const SizedBox(height: 2),
                     Text(
                       visit.purpose,
-                      style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                      style: AppTypography.secondary.copyWith(
+                        color: Colors.grey[600],
+                      ),
                     ),
                   ],
                 ),
@@ -877,13 +904,20 @@ class _TasksScreenState extends State<TasksScreen> with TickerProviderStateMixin
                 ),
               ),
               GestureDetector(
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Opening map...'),
-                      backgroundColor: primaryBlue,
-                    ),
-                  );
+                onTap: () async {
+                  final url = Uri.parse('https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(visit.location)}');
+                  if (await canLaunchUrl(url)) {
+                    await launchUrl(url, mode: LaunchMode.externalApplication);
+                  } else {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Could not open map'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  }
                 },
                 child: Text(
                   'Open Map',
@@ -935,7 +969,9 @@ class _TasksScreenState extends State<TasksScreen> with TickerProviderStateMixin
                   const SizedBox(height: 4),
                   Text(
                     visit.notes,
-                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                    style: AppTypography.caption.copyWith(
+                      color: Colors.grey[600],
+                    ),
                   ),
                 ],
               ),
@@ -955,7 +991,8 @@ class _TasksScreenState extends State<TasksScreen> with TickerProviderStateMixin
                     if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text('Visit completed on ${DateFormat('MMM dd, yyyy').format(DateTime.now())}'),
+                          content: Text(
+                              'Visit completed on ${DateFormat('MMM dd, yyyy').format(DateTime.now())}'),
                           backgroundColor: Colors.green,
                           duration: const Duration(seconds: 3),
                         ),
@@ -963,39 +1000,46 @@ class _TasksScreenState extends State<TasksScreen> with TickerProviderStateMixin
                     }
                   },
                   icon: const Icon(Icons.check, size: 14),
-                  label: const Text('Complete', style: TextStyle(fontSize: 12)),
+                  label: Text('Complete', style: AppTypography.buttonSmall),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: primaryBlue,
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    padding:
+                        const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8)),
                     elevation: 0,
                     minimumSize: const Size(0, 32),
                   ),
                 ),
-                
+
                 // Mark Pending (Only for Missed tasks)
                 if (visit.status == 'missed')
                   ElevatedButton.icon(
                     onPressed: () async {
                       if (visit.id == null) return;
-                      final result = await ApiService.updateTaskStatus(visit.id!, 'pending');
+                      final result = await ApiService.updateTaskStatus(
+                          visit.id!, 'pending');
                       if (result['success'] == true) {
                         _loadVisits();
                         if (mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Task marked as pending'), backgroundColor: Colors.orange),
+                            const SnackBar(
+                                content: Text('Task marked as pending'),
+                                backgroundColor: Colors.orange),
                           );
                         }
                       }
                     },
                     icon: const Icon(Icons.refresh, size: 14),
-                    label: const Text('Pending', style: TextStyle(fontSize: 12)),
+                    label: Text('Pending', style: AppTypography.buttonSmall),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.orange[50],
                       foregroundColor: Colors.orange[700],
-                      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 8, horizontal: 12),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
                       elevation: 0,
                       minimumSize: const Size(0, 32),
                     ),
@@ -1005,12 +1049,14 @@ class _TasksScreenState extends State<TasksScreen> with TickerProviderStateMixin
                 ElevatedButton.icon(
                   onPressed: () => _showEditTaskDialog(visit),
                   icon: const Icon(Icons.edit_outlined, size: 14),
-                  label: const Text('Edit', style: TextStyle(fontSize: 12)),
+                  label: Text('Edit', style: AppTypography.buttonSmall),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue[50],
                     foregroundColor: Colors.blue[700],
-                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    padding:
+                        const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8)),
                     elevation: 0,
                     minimumSize: const Size(0, 32),
                   ),
@@ -1020,12 +1066,14 @@ class _TasksScreenState extends State<TasksScreen> with TickerProviderStateMixin
                 ElevatedButton.icon(
                   onPressed: () => _showDeleteConfirmation(visit),
                   icon: const Icon(Icons.delete_outline, size: 14),
-                  label: const Text('Delete', style: TextStyle(fontSize: 12)),
+                  label: Text('Delete', style: AppTypography.buttonSmall),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.red[50],
                     foregroundColor: Colors.red[600],
-                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    padding:
+                        const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8)),
                     elevation: 0,
                     minimumSize: const Size(0, 32),
                   ),
@@ -1048,7 +1096,10 @@ class _TasksScreenState extends State<TasksScreen> with TickerProviderStateMixin
                   Expanded(
                     child: Text(
                       'This task is completed and locked',
-                      style: TextStyle(fontSize: 11, color: Colors.green[700], fontWeight: FontWeight.w500),
+                      style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.green[700],
+                          fontWeight: FontWeight.w500),
                     ),
                   ),
                 ],
@@ -1061,12 +1112,14 @@ class _TasksScreenState extends State<TasksScreen> with TickerProviderStateMixin
                   child: OutlinedButton.icon(
                     onPressed: () => _navigateToClientSummary(visit),
                     icon: const Icon(Icons.visibility, size: 14),
-                    label: const Text('View Summary', style: TextStyle(fontSize: 12)),
+                    label:
+                        Text('View Summary', style: AppTypography.buttonSmall),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: primaryBlue,
                       side: const BorderSide(color: primaryBlue),
                       padding: const EdgeInsets.symmetric(vertical: 8),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
                       minimumSize: const Size(0, 32),
                     ),
                   ),
@@ -1081,12 +1134,13 @@ class _TasksScreenState extends State<TasksScreen> with TickerProviderStateMixin
             child: OutlinedButton.icon(
               onPressed: () => _mailVisit(visit),
               icon: const Icon(Icons.email_outlined, size: 14),
-              label: const Text('Mail It', style: TextStyle(fontSize: 12)),
+              label: Text('Mail It', style: AppTypography.buttonSmall),
               style: OutlinedButton.styleFrom(
                 foregroundColor: Colors.teal,
                 side: const BorderSide(color: Colors.teal),
                 padding: const EdgeInsets.symmetric(vertical: 6),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8)),
                 minimumSize: const Size(0, 30),
               ),
             ),
@@ -1111,12 +1165,13 @@ class _TasksScreenState extends State<TasksScreen> with TickerProviderStateMixin
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16)),
               title: Row(
                 children: [
                   Icon(Icons.edit, color: primaryBlue, size: 22),
                   const SizedBox(width: 8),
-                  const Text('Edit Task', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18)),
+                  Text('Edit Task', style: AppTypography.dialogTitle),
                 ],
               ),
               content: SingleChildScrollView(
@@ -1129,8 +1184,10 @@ class _TasksScreenState extends State<TasksScreen> with TickerProviderStateMixin
                       decoration: InputDecoration(
                         labelText: 'Title / Purpose',
                         prefixIcon: const Icon(Icons.title),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                        filled: true, fillColor: Colors.grey[50],
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10)),
+                        filled: true,
+                        fillColor: Colors.grey[50],
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -1140,8 +1197,10 @@ class _TasksScreenState extends State<TasksScreen> with TickerProviderStateMixin
                       decoration: InputDecoration(
                         labelText: 'Location',
                         prefixIcon: const Icon(Icons.location_on_outlined),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                        filled: true, fillColor: Colors.grey[50],
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10)),
+                        filled: true,
+                        fillColor: Colors.grey[50],
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -1152,8 +1211,10 @@ class _TasksScreenState extends State<TasksScreen> with TickerProviderStateMixin
                       decoration: InputDecoration(
                         labelText: 'Phone Number',
                         prefixIcon: const Icon(Icons.phone_outlined),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                        filled: true, fillColor: Colors.grey[50],
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10)),
+                        filled: true,
+                        fillColor: Colors.grey[50],
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -1164,29 +1225,37 @@ class _TasksScreenState extends State<TasksScreen> with TickerProviderStateMixin
                           context: context,
                           initialDate: selectedDate,
                           firstDate: DateTime.now(),
-                          lastDate: DateTime.now().add(const Duration(days: 365)),
+                          lastDate:
+                              DateTime.now().add(const Duration(days: 365)),
                           builder: (c, child) => Theme(
                             data: Theme.of(c).copyWith(
-                              colorScheme: const ColorScheme.light(primary: primaryBlue),
+                              colorScheme:
+                                  const ColorScheme.light(primary: primaryBlue),
                             ),
                             child: child!,
                           ),
                         );
                         if (picked != null) {
                           setDialogState(() => selectedDate = DateTime(
-                            picked.year, picked.month, picked.day,
-                            selectedTime.hour, selectedTime.minute,
-                          ));
+                                picked.year,
+                                picked.month,
+                                picked.day,
+                                selectedTime.hour,
+                                selectedTime.minute,
+                              ));
                         }
                       },
                       child: InputDecorator(
                         decoration: InputDecoration(
                           labelText: 'Date',
                           prefixIcon: const Icon(Icons.calendar_today),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                          filled: true, fillColor: Colors.grey[50],
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10)),
+                          filled: true,
+                          fillColor: Colors.grey[50],
                         ),
-                        child: Text(DateFormat('dd MMM yyyy').format(selectedDate)),
+                        child: Text(
+                            DateFormat('dd MMM yyyy').format(selectedDate)),
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -1198,7 +1267,8 @@ class _TasksScreenState extends State<TasksScreen> with TickerProviderStateMixin
                           initialTime: selectedTime,
                           builder: (c, child) => Theme(
                             data: Theme.of(c).copyWith(
-                              colorScheme: const ColorScheme.light(primary: primaryBlue),
+                              colorScheme:
+                                  const ColorScheme.light(primary: primaryBlue),
                             ),
                             child: child!,
                           ),
@@ -1207,8 +1277,11 @@ class _TasksScreenState extends State<TasksScreen> with TickerProviderStateMixin
                           setDialogState(() {
                             selectedTime = picked;
                             selectedDate = DateTime(
-                              selectedDate.year, selectedDate.month, selectedDate.day,
-                              picked.hour, picked.minute,
+                              selectedDate.year,
+                              selectedDate.month,
+                              selectedDate.day,
+                              picked.hour,
+                              picked.minute,
                             );
                           });
                         }
@@ -1217,8 +1290,10 @@ class _TasksScreenState extends State<TasksScreen> with TickerProviderStateMixin
                         decoration: InputDecoration(
                           labelText: 'Time',
                           prefixIcon: const Icon(Icons.access_time),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                          filled: true, fillColor: Colors.grey[50],
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10)),
+                          filled: true,
+                          fillColor: Colors.grey[50],
                         ),
                         child: Text(selectedTime.format(context)),
                       ),
@@ -1231,8 +1306,10 @@ class _TasksScreenState extends State<TasksScreen> with TickerProviderStateMixin
                       decoration: InputDecoration(
                         labelText: 'Notes',
                         prefixIcon: const Icon(Icons.notes_outlined),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                        filled: true, fillColor: Colors.grey[50],
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10)),
+                        filled: true,
+                        fillColor: Colors.grey[50],
                       ),
                     ),
                   ],
@@ -1241,7 +1318,10 @@ class _TasksScreenState extends State<TasksScreen> with TickerProviderStateMixin
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(ctx),
-                  child: Text('Cancel', style: TextStyle(color: Colors.grey[600])),
+                  child: Text('Cancel',
+                      style: AppTypography.secondary.copyWith(
+                        color: Colors.grey[600],
+                      )),
                 ),
                 ElevatedButton(
                   onPressed: () async {
@@ -1258,7 +1338,8 @@ class _TasksScreenState extends State<TasksScreen> with TickerProviderStateMixin
                   style: ElevatedButton.styleFrom(
                     backgroundColor: primaryBlue,
                     foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8)),
                   ),
                   child: const Text('Save Changes'),
                 ),
@@ -1270,7 +1351,8 @@ class _TasksScreenState extends State<TasksScreen> with TickerProviderStateMixin
     );
   }
 
-  Future<void> _editTask(Visit visit, {
+  Future<void> _editTask(
+    Visit visit, {
     required String title,
     required String location,
     required String phone,

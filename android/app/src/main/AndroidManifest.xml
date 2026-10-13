@@ -1,6 +1,14 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     package="com.pegasos.fieldexecutive">
 
+    <uses-permission
+        android:name="android.permission.READ_MEDIA_IMAGES"
+        tools:node="remove" />
+
+    <uses-permission
+        android:name="android.permission.READ_MEDIA_VIDEO"
+        tools:node="remove" />
     <!-- Internet permission (REQUIRED for API calls) -->
     <uses-permission android:name="android.permission.INTERNET" />
 
@@ -9,7 +17,7 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
     <!-- Background location (Android 10+) -->
-
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
 
     <!-- Camera permission for image_picker -->
     <uses-permission android:name="android.permission.CAMERA" />
@@ -21,6 +29,7 @@
         android:maxSdkVersion="32" />
 
 
+    <!-- Notification permission (Android 13+) -->
     <!-- Notification permission (Android 13+) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
@@ -54,11 +63,11 @@
     </queries>
 
     <application
-
         android:label="Pegasos Field App"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
-        android:usesCleartextTraffic="true">
+        android:usesCleartextTraffic="true"
+        android:requestLegacyExternalStorage="true">
 
         <activity
             android:name=".MainActivity"
@@ -114,7 +123,6 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
-    </application
->
+    </application>
 
 </manifest>

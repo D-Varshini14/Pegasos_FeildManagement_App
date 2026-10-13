@@ -2,12 +2,14 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../utils/app_typography.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/api_service.dart';
 import 'home_screen.dart';
 import 'admin_home_screen.dart';
 import 'manager_home_screen.dart';
 import 'signup_screen.dart';
+import '../services/location_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -17,13 +19,14 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _employeeIdController = TextEditingController();
+  final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  final FocusNode _employeeIdFocus = FocusNode();
+  final FocusNode _emailFocus = FocusNode();
   final FocusNode _passFocus = FocusNode();
 
   bool _isLoading = false;
   bool _obscurePassword = true;
+  bool _rememberMe = false;
   String _errorMessage = '';
 
   static const Color primaryBlue = Color(0xFF0F3A68);
@@ -31,22 +34,45 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void initState() {
     super.initState();
-    _employeeIdFocus.addListener(() => setState(() {}));
+    _emailFocus.addListener(() => setState(() {}));
     _passFocus.addListener(() => setState(() {}));
+    _loadRememberedEmail();
+  }
+
+  /// Load saved email if user previously checked "Remember Me"
+  Future<void> _loadRememberedEmail() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedEmail = prefs.getString('remember_me_email');
+    if (savedEmail != null && savedEmail.isNotEmpty) {
+      setState(() {
+        _emailController.text = savedEmail;
+        _rememberMe = true;
+      });
+    }
   }
 
   Future<void> _handleLogin() async {
-    if (_employeeIdController.text.isEmpty || _passwordController.text.isEmpty) {
-      setState(() => _errorMessage = 'Please enter Employee ID and Password');
+    if (_emailController.text.isEmpty ||
+        _passwordController.text.isEmpty) {
+      setState(() => _errorMessage = 'Please enter Email and Password');
       return;
     }
 
-    setState(() { _isLoading = true; _errorMessage = ''; });
+    // Validate email format
+    final emailRegex = RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$');
+    if (!emailRegex.hasMatch(_emailController.text.trim())) {
+      setState(() => _errorMessage = 'Please enter a valid email address');
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = '';
+    });
 
     try {
       final response = await ApiService.login(
-        '',
-        _employeeIdController.text.trim(),
+        _emailController.text.trim(),
         _passwordController.text,
       );
 
@@ -54,6 +80,18 @@ class _LoginScreenState extends State<LoginScreen> {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('token', response['data']['token']);
         await prefs.setString('user', jsonEncode(response['data']['user']));
+
+        // Save or clear remembered email
+        if (_rememberMe) {
+          await prefs.setString('remember_me_email', _emailController.text.trim());
+        } else {
+          await prefs.remove('remember_me_email');
+        }
+
+        try {
+          final location = await LocationService.getCurrentLocationAddress();
+          await ApiService.logActivity(type: 'sign_in', location: location);
+        } catch (_) {}
 
         if (mounted) {
           // REQ #2: Route based on role
@@ -75,7 +113,8 @@ class _LoginScreenState extends State<LoginScreen> {
         setState(() => _errorMessage = response['message'] ?? 'Login failed');
       }
     } catch (e) {
-      setState(() => _errorMessage = 'Network error. Please check your connection.');
+      setState(
+          () => _errorMessage = 'Network error. Please check your connection.');
     } finally {
       setState(() => _isLoading = false);
     }
@@ -117,7 +156,8 @@ class _LoginScreenState extends State<LoginScreen> {
       barrierDismissible: false,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: Row(
             children: [
               Container(
@@ -136,10 +176,8 @@ class _LoginScreenState extends State<LoginScreen> {
               Expanded(
                 child: Text(
                   step == 1 ? 'Forgot Password' : 'Reset Password',
-                  style: GoogleFonts.poppins(
-                    fontWeight: FontWeight.w700,
+                  style: AppTypography.dialogTitle.copyWith(
                     color: primaryBlue,
-                    fontSize: 18,
                   ),
                 ),
               ),
@@ -154,7 +192,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   // ── STEP 1: Enter Email ──
                   Text(
                     'Enter your registered email address. We\'ll send you a 6-digit reset code.',
-                    style: GoogleFonts.poppins(fontSize: 13, color: Colors.grey[600]),
+                    style: AppTypography.alertDescription
+                        .copyWith(color: Colors.grey[600]),
                   ),
                   const SizedBox(height: 16),
                   TextField(
@@ -162,19 +201,23 @@ class _LoginScreenState extends State<LoginScreen> {
                     keyboardType: TextInputType.emailAddress,
                     decoration: InputDecoration(
                       hintText: 'Email address',
-                      hintStyle: GoogleFonts.poppins(color: Colors.grey[400]),
-                      prefixIcon: const Icon(Icons.email_outlined, color: Colors.grey),
+                      hintStyle:
+                          AppTypography.hint.copyWith(color: Colors.grey[400]),
+                      prefixIcon:
+                          const Icon(Icons.email_outlined, color: Colors.grey),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
                         borderSide: BorderSide(color: Colors.grey.shade300),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
-                        borderSide: const BorderSide(color: primaryBlue, width: 2),
+                        borderSide:
+                            const BorderSide(color: primaryBlue, width: 2),
                       ),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 14),
                     ),
-                    style: GoogleFonts.poppins(fontSize: 14),
+                    style: AppTypography.secondaryMedium,
                   ),
                 ] else ...[
                   // ── STEP 2: Enter OTP + New Password ──
@@ -186,7 +229,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.info_outline, color: primaryBlue, size: 16),
+                        const Icon(Icons.info_outline,
+                            color: primaryBlue, size: 16),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Column(
@@ -194,35 +238,44 @@ class _LoginScreenState extends State<LoginScreen> {
                             children: [
                               Text(
                                 'Code sent to $resetEmail',
-                                style: GoogleFonts.poppins(fontSize: 12, color: primaryBlue),
+                                style: AppTypography.alertText
+                                    .copyWith(color: primaryBlue),
                               ),
                               if (secondsRemaining > 0)
                                 Text(
                                   'Expires in: ${secondsRemaining ~/ 60}:${(secondsRemaining % 60).toString().padLeft(2, '0')}',
-                                  style: GoogleFonts.poppins(fontSize: 12, color: Colors.orange.shade700, fontWeight: FontWeight.bold),
+                                  style: AppTypography.timerText
+                                      .copyWith(color: Colors.orange.shade700),
                                 )
                               else
                                 Text(
                                   'Code expired',
-                                  style: GoogleFonts.poppins(fontSize: 12, color: Colors.red.shade700, fontWeight: FontWeight.bold),
+                                  style: AppTypography.timerText
+                                      .copyWith(color: Colors.red.shade700),
                                 ),
                               const SizedBox(height: 4),
                               TextButton(
                                 style: TextButton.styleFrom(
                                   padding: EdgeInsets.zero,
                                   minimumSize: Size.zero,
-                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                  tapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
                                 ),
                                 onPressed: () async {
-                                  setDialogState(() { message = 'Resending...'; isError = false; });
-                                  final res = await ApiService.resendOtp(resetEmail);
+                                  setDialogState(() {
+                                    message = 'Resending...';
+                                    isError = false;
+                                  });
+                                  final res =
+                                      await ApiService.resendOtp(resetEmail);
                                   setDialogState(() {
                                     message = res['message'] ?? 'Code resent';
                                     isError = res['success'] != true;
                                     if (!isError) startTimer(setDialogState);
                                   });
                                 },
-                                child: Text('Resend Code', style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.bold, decoration: TextDecoration.underline)),
+                                child: Text('Resend Code',
+                                    style: AppTypography.resendAction),
                               ),
                             ],
                           ),
@@ -239,8 +292,10 @@ class _LoginScreenState extends State<LoginScreen> {
                     textAlign: TextAlign.center,
                     decoration: InputDecoration(
                       hintText: '6-digit code',
-                      hintStyle: GoogleFonts.poppins(color: Colors.grey[400]),
-                      prefixIcon: const Icon(Icons.pin_outlined, color: Colors.grey),
+                      hintStyle:
+                          AppTypography.hint.copyWith(color: Colors.grey[400]),
+                      prefixIcon:
+                          const Icon(Icons.pin_outlined, color: Colors.grey),
                       counterText: '',
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
@@ -248,15 +303,13 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
-                        borderSide: const BorderSide(color: primaryBlue, width: 2),
+                        borderSide:
+                            const BorderSide(color: primaryBlue, width: 2),
                       ),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 14),
                     ),
-                    style: GoogleFonts.poppins(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 8,
-                    ),
+                    style: AppTypography.otpCode,
                   ),
                   const SizedBox(height: 12),
                   // New password
@@ -264,15 +317,22 @@ class _LoginScreenState extends State<LoginScreen> {
                     controller: newPassController,
                     obscureText: obscureNew,
                     decoration: InputDecoration(
-                      hintText: 'New password (8+ chars, upper, lower, num, special)',
-                      hintStyle: GoogleFonts.poppins(color: Colors.grey[400], fontSize: 10),
-                      prefixIcon: const Icon(Icons.lock_outline, color: Colors.grey),
+                      hintText:
+                          'New password (8+ chars, upper, lower, num, special)',
+                      hintStyle: AppTypography.hint
+                          .copyWith(color: Colors.grey[400], fontSize: 10),
+                      prefixIcon:
+                          const Icon(Icons.lock_outline, color: Colors.grey),
                       suffixIcon: IconButton(
                         icon: Icon(
-                          obscureNew ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-                          color: Colors.grey[400], size: 20,
+                          obscureNew
+                              ? Icons.visibility_outlined
+                              : Icons.visibility_off_outlined,
+                          color: Colors.grey[400],
+                          size: 20,
                         ),
-                        onPressed: () => setDialogState(() => obscureNew = !obscureNew),
+                        onPressed: () =>
+                            setDialogState(() => obscureNew = !obscureNew),
                       ),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
@@ -280,11 +340,13 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
-                        borderSide: const BorderSide(color: primaryBlue, width: 2),
+                        borderSide:
+                            const BorderSide(color: primaryBlue, width: 2),
                       ),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 14),
                     ),
-                    style: GoogleFonts.poppins(fontSize: 14),
+                    style: AppTypography.secondaryMedium,
                   ),
                   const SizedBox(height: 12),
                   // Confirm password
@@ -293,14 +355,20 @@ class _LoginScreenState extends State<LoginScreen> {
                     obscureText: obscureConfirm,
                     decoration: InputDecoration(
                       hintText: 'Confirm new password',
-                      hintStyle: GoogleFonts.poppins(color: Colors.grey[400], fontSize: 13),
-                      prefixIcon: const Icon(Icons.lock_outline, color: Colors.grey),
+                      hintStyle:
+                          AppTypography.hint.copyWith(color: Colors.grey[400]),
+                      prefixIcon:
+                          const Icon(Icons.lock_outline, color: Colors.grey),
                       suffixIcon: IconButton(
                         icon: Icon(
-                          obscureConfirm ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-                          color: Colors.grey[400], size: 20,
+                          obscureConfirm
+                              ? Icons.visibility_outlined
+                              : Icons.visibility_off_outlined,
+                          color: Colors.grey[400],
+                          size: 20,
                         ),
-                        onPressed: () => setDialogState(() => obscureConfirm = !obscureConfirm),
+                        onPressed: () => setDialogState(
+                            () => obscureConfirm = !obscureConfirm),
                       ),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
@@ -308,11 +376,13 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
-                        borderSide: const BorderSide(color: primaryBlue, width: 2),
+                        borderSide:
+                            const BorderSide(color: primaryBlue, width: 2),
                       ),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 14),
                     ),
-                    style: GoogleFonts.poppins(fontSize: 14),
+                    style: AppTypography.secondaryMedium,
                   ),
                 ],
 
@@ -322,16 +392,21 @@ class _LoginScreenState extends State<LoginScreen> {
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: isError ? Colors.red.shade50 : Colors.green.shade50,
+                      color:
+                          isError ? Colors.red.shade50 : Colors.green.shade50,
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(
-                        color: isError ? Colors.red.shade300 : Colors.green.shade300,
+                        color: isError
+                            ? Colors.red.shade300
+                            : Colors.green.shade300,
                       ),
                     ),
                     child: Row(
                       children: [
                         Icon(
-                          isError ? Icons.error_outline : Icons.check_circle_outline,
+                          isError
+                              ? Icons.error_outline
+                              : Icons.check_circle_outline,
                           color: isError ? Colors.red : Colors.green,
                           size: 16,
                         ),
@@ -339,9 +414,10 @@ class _LoginScreenState extends State<LoginScreen> {
                         Expanded(
                           child: Text(
                             message,
-                            style: GoogleFonts.poppins(
-                              fontSize: 12,
-                              color: isError ? Colors.red.shade700 : Colors.green.shade700,
+                            style: AppTypography.alertText.copyWith(
+                              color: isError
+                                  ? Colors.red.shade700
+                                  : Colors.green.shade700,
                             ),
                           ),
                         ),
@@ -368,7 +444,8 @@ class _LoginScreenState extends State<LoginScreen> {
               },
               child: Text(
                 step == 2 && !isSuccess ? 'Back' : 'Cancel',
-                style: GoogleFonts.poppins(color: Colors.grey[600]),
+                style: AppTypography.secondaryMedium
+                    .copyWith(color: Colors.grey[600]),
               ),
             ),
             // Action button
@@ -380,10 +457,17 @@ class _LoginScreenState extends State<LoginScreen> {
                         if (step == 1) {
                           // ── Step 1: Send OTP ──
                           if (emailController.text.trim().isEmpty) {
-                            setDialogState(() { message = 'Please enter your email'; isError = true; });
+                            setDialogState(() {
+                              message = 'Please enter your email';
+                              isError = true;
+                            });
                             return;
                           }
-                          setDialogState(() { isLoading = true; message = ''; isError = false; });
+                          setDialogState(() {
+                            isLoading = true;
+                            message = '';
+                            isError = false;
+                          });
 
                           final response = await ApiService.forgotPassword(
                             emailController.text.trim(),
@@ -406,30 +490,50 @@ class _LoginScreenState extends State<LoginScreen> {
                           } else {
                             setDialogState(() {
                               isLoading = false;
-                              message = response['message'] ?? 'Failed to send code';
+                              message =
+                                  response['message'] ?? 'Failed to send code';
                               isError = true;
                             });
                           }
                         } else {
                           // ── Step 2: Verify OTP + Reset Password ──
                           if (otpController.text.trim().isEmpty) {
-                            setDialogState(() { message = 'Please enter the 6-digit code'; isError = true; });
+                            setDialogState(() {
+                              message = 'Please enter the 6-digit code';
+                              isError = true;
+                            });
                             return;
                           }
                           if (newPassController.text.isEmpty) {
-                            setDialogState(() { message = 'Please enter a new password'; isError = true; });
+                            setDialogState(() {
+                              message = 'Please enter a new password';
+                              isError = true;
+                            });
                             return;
                           }
-                          final RegExp pwdRegExp = RegExp(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$');
+                          final RegExp pwdRegExp = RegExp(
+                              r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$');
                           if (!pwdRegExp.hasMatch(newPassController.text)) {
-                            setDialogState(() { message = 'Password must be 8+ chars with upper, lower, number, and special char'; isError = true; });
+                            setDialogState(() {
+                              message =
+                                  'Password must be 8+ chars with upper, lower, number, and special char';
+                              isError = true;
+                            });
                             return;
                           }
-                          if (newPassController.text != confirmPassController.text) {
-                            setDialogState(() { message = 'Passwords do not match'; isError = true; });
+                          if (newPassController.text !=
+                              confirmPassController.text) {
+                            setDialogState(() {
+                              message = 'Passwords do not match';
+                              isError = true;
+                            });
                             return;
                           }
-                          setDialogState(() { isLoading = true; message = ''; isError = false; });
+                          setDialogState(() {
+                            isLoading = true;
+                            message = '';
+                            isError = false;
+                          });
 
                           final response = await ApiService.resetPassword(
                             resetEmail,
@@ -441,7 +545,8 @@ class _LoginScreenState extends State<LoginScreen> {
                             isLoading = false;
                             isSuccess = response['success'] == true;
                             isError = !isSuccess;
-                            message = response['message'] ?? 'Something went wrong';
+                            message =
+                                response['message'] ?? 'Something went wrong';
                           });
 
                           if (isSuccess) {
@@ -455,7 +560,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                 ),
                 child: isLoading
                     ? const SizedBox(
@@ -468,7 +574,8 @@ class _LoginScreenState extends State<LoginScreen> {
                       )
                     : Text(
                         step == 1 ? 'Send Code' : 'Reset Password',
-                        style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.w600),
+                        style: AppTypography.buttonMedium
+                            .copyWith(color: Colors.white),
                       ),
               ),
           ],
@@ -494,21 +601,19 @@ class _LoginScreenState extends State<LoginScreen> {
             right: 0,
             child: Column(
               children: [
-                const Icon(Icons.business_center, color: Colors.white, size: 48),
+                const Icon(Icons.business_center,
+                    color: Colors.white, size: 48),
                 const SizedBox(height: 12),
                 Text(
                   'Pegasos',
                   textAlign: TextAlign.center,
-                  style: GoogleFonts.poppins(
-                    fontSize: 32,
-                    fontWeight: FontWeight.w800,
+                  style: AppTypography.loginBrand.copyWith(
                     color: Colors.white,
                   ),
                 ),
                 Text(
                   'Field Management',
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
+                  style: AppTypography.loginSubBrand.copyWith(
                     color: Colors.white70,
                   ),
                 ),
@@ -533,17 +638,14 @@ class _LoginScreenState extends State<LoginScreen> {
                     children: [
                       Text(
                         'Welcome Back',
-                        style: GoogleFonts.poppins(
-                          fontSize: 26,
-                          fontWeight: FontWeight.w700,
+                        style: AppTypography.welcomeTitle.copyWith(
                           color: Colors.black,
                         ),
                       ),
                       const SizedBox(height: 8),
                       Text(
                         'Sign in to continue',
-                        style: GoogleFonts.poppins(
-                          fontSize: 14,
+                        style: AppTypography.welcomeSubtitle.copyWith(
                           color: Colors.grey[600],
                         ),
                       ),
@@ -560,14 +662,15 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           child: Row(
                             children: [
-                              Icon(Icons.error_outline, color: Colors.red.shade600, size: 18),
+                              Icon(Icons.error_outline,
+                                  color: Colors.red.shade600, size: 18),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
                                   _errorMessage,
-                                  style: GoogleFonts.poppins(
+                                  style:
+                                      AppTypography.alertDescription.copyWith(
                                     color: Colors.red.shade700,
-                                    fontSize: 13,
                                   ),
                                 ),
                               ),
@@ -577,13 +680,14 @@ class _LoginScreenState extends State<LoginScreen> {
                         const SizedBox(height: 20),
                       ],
 
-                      // Employee ID Field
+                      // Email Field
                       _Field(
-                        controller: _employeeIdController,
-                        hint: 'Employee ID (e.g., EMP001)',
-                        focusNode: _employeeIdFocus,
+                        controller: _emailController,
+                        hint: 'Email Address',
+                        focusNode: _emailFocus,
                         isPassword: false,
-                        prefixIcon: Icons.badge_outlined,
+                        prefixIcon: Icons.email_outlined,
+                        keyboardType: TextInputType.emailAddress,
                       ),
                       const SizedBox(height: 16),
 
@@ -595,30 +699,66 @@ class _LoginScreenState extends State<LoginScreen> {
                         isPassword: true,
                         prefixIcon: Icons.lock_outline,
                         obscureText: _obscurePassword,
-                        onToggleVisibility: () =>
-                            setState(() => _obscurePassword = !_obscurePassword),
+                        onToggleVisibility: () => setState(
+                            () => _obscurePassword = !_obscurePassword),
                       ),
                       const SizedBox(height: 8),
 
-                      // REQ #1 — Forgot Password link
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: TextButton(
-                          onPressed: _showForgotPasswordDialog,
-                          style: TextButton.styleFrom(
-                            padding: EdgeInsets.zero,
-                            minimumSize: Size.zero,
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          ),
-                          child: Text(
-                            'Forgot Password?',
-                            style: GoogleFonts.poppins(
-                              fontSize: 13,
-                              color: primaryBlue,
-                              fontWeight: FontWeight.w600,
+                      // Remember Me + Forgot Password row
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          // Remember Me checkbox
+                          GestureDetector(
+                            onTap: () => setState(() => _rememberMe = !_rememberMe),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: Checkbox(
+                                    value: _rememberMe,
+                                    onChanged: (val) => setState(() => _rememberMe = val ?? false),
+                                    activeColor: primaryBlue,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    side: BorderSide(
+                                      color: Colors.grey.shade400,
+                                      width: 1.5,
+                                    ),
+                                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                    visualDensity: VisualDensity.compact,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Remember Me',
+                                  style: AppTypography.secondary.copyWith(
+                                    color: Colors.grey.shade700,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                        ),
+                          // Forgot Password link
+                          TextButton(
+                            onPressed: _showForgotPasswordDialog,
+                            style: TextButton.styleFrom(
+                              padding: EdgeInsets.zero,
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            child: Text(
+                              'Forgot Password?',
+                              style: AppTypography.link.copyWith(
+                                color: primaryBlue,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 24),
 
@@ -641,10 +781,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   color: Colors.white, strokeWidth: 2)
                               : Text(
                                   'Log In',
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w600,
-                                  ),
+                                  style: AppTypography.buttonLarge,
                                 ),
                         ),
                       ),
@@ -660,15 +797,13 @@ class _LoginScreenState extends State<LoginScreen> {
                         child: RichText(
                           text: TextSpan(
                             text: "Don't have an account? ",
-                            style: GoogleFonts.poppins(
-                                fontSize: 14, color: Colors.grey.shade700),
+                            style: AppTypography.secondary
+                                .copyWith(color: Colors.grey.shade700),
                             children: [
                               TextSpan(
                                 text: 'Create Account',
-                                style: GoogleFonts.poppins(
-                                  fontSize: 14,
+                                style: AppTypography.linkProminent.copyWith(
                                   color: primaryBlue,
-                                  fontWeight: FontWeight.w600,
                                   decoration: TextDecoration.underline,
                                 ),
                               ),
@@ -690,9 +825,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   void dispose() {
-    _employeeIdController.dispose();
+    _emailController.dispose();
     _passwordController.dispose();
-    _employeeIdFocus.dispose();
+    _emailFocus.dispose();
     _passFocus.dispose();
     super.dispose();
   }
@@ -707,6 +842,7 @@ class _Field extends StatelessWidget {
     this.prefixIcon,
     this.obscureText = false,
     this.onToggleVisibility,
+    this.keyboardType,
   });
 
   final TextEditingController controller;
@@ -716,6 +852,7 @@ class _Field extends StatelessWidget {
   final IconData? prefixIcon;
   final bool obscureText;
   final VoidCallback? onToggleVisibility;
+  final TextInputType? keyboardType;
 
   static const Color primaryBlue = Color(0xFF0F3A68);
 
@@ -740,12 +877,13 @@ class _Field extends StatelessWidget {
         autocorrect: false,
         enableSuggestions: false,
         textCapitalization: TextCapitalization.none,
-        textInputAction: isPassword ? TextInputAction.done : TextInputAction.next,
-        style: GoogleFonts.poppins(fontSize: 15, fontWeight: FontWeight.w500),
+        keyboardType: keyboardType,
+        textInputAction:
+            isPassword ? TextInputAction.done : TextInputAction.next,
+        style: AppTypography.inputText,
         decoration: InputDecoration(
           hintText: hint,
-          hintStyle: GoogleFonts.poppins(
-            fontSize: 14,
+          hintStyle: AppTypography.hint.copyWith(
             color: Colors.grey[400],
           ),
           prefixIcon: prefixIcon != null
@@ -755,14 +893,17 @@ class _Field extends StatelessWidget {
           suffixIcon: isPassword && onToggleVisibility != null
               ? IconButton(
                   icon: Icon(
-                    obscureText ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                    obscureText
+                        ? Icons.visibility_outlined
+                        : Icons.visibility_off_outlined,
                     color: Colors.grey[400],
                     size: 20,
                   ),
                   onPressed: onToggleVisibility,
                 )
               : null,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
           border: InputBorder.none,
         ),
       ),
@@ -778,7 +919,8 @@ class _WideShallowDome extends CustomClipper<Path> {
 
     final path = Path()
       ..moveTo(0, edgeDrop)
-      ..quadraticBezierTo(size.width * 0.5, edgeDrop - crownLift, size.width, edgeDrop)
+      ..quadraticBezierTo(
+          size.width * 0.5, edgeDrop - crownLift, size.width, edgeDrop)
       ..lineTo(size.width, size.height)
       ..lineTo(0, size.height)
       ..close();

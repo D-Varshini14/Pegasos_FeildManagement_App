@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/app_typography.dart';
 import 'package:intl/intl.dart';
 import '../services/api_service.dart';
 import '../services/notification_service.dart';
@@ -62,23 +63,35 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   IconData _getIcon(String type) {
     switch (type) {
-      case 'task_assigned': return Icons.assignment_outlined;
-      case 'task_update': return Icons.update_outlined;
-      case 'leave_update': return Icons.event_note_outlined;
-      case 'visit_reminder': return Icons.location_on_outlined;
-      case 'lead_update': return Icons.trending_up_outlined;
-      default: return Icons.notifications_outlined;
+      case 'task_assigned':
+        return Icons.assignment_outlined;
+      case 'task_update':
+        return Icons.update_outlined;
+      case 'leave_update':
+        return Icons.event_note_outlined;
+      case 'visit_reminder':
+        return Icons.location_on_outlined;
+      case 'lead_update':
+        return Icons.trending_up_outlined;
+      default:
+        return Icons.notifications_outlined;
     }
   }
 
   Color _getColor(String type) {
     switch (type) {
-      case 'task_assigned': return Colors.blue;
-      case 'task_update': return Colors.orange;
-      case 'leave_update': return Colors.purple;
-      case 'visit_reminder': return Colors.green;
-      case 'lead_update': return Colors.teal;
-      default: return primaryBlue;
+      case 'task_assigned':
+        return Colors.blue;
+      case 'task_update':
+        return Colors.orange;
+      case 'leave_update':
+        return Colors.purple;
+      case 'visit_reminder':
+        return Colors.green;
+      case 'lead_update':
+        return Colors.teal;
+      default:
+        return primaryBlue;
     }
   }
 
@@ -139,7 +152,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                               color: Colors.grey[500])),
                       const SizedBox(height: 8),
                       Text('You\'re all caught up!',
-                          style: TextStyle(fontSize: 14, color: Colors.grey[400])),
+                          style:
+                              TextStyle(fontSize: 14, color: Colors.grey[400])),
                     ],
                   ),
                 )
@@ -150,7 +164,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     itemCount: _notifications.length,
                     itemBuilder: (context, index) {
                       final notif = _notifications[index];
-                      final isRead = notif['is_read'] == 1 || notif['is_read'] == true;
+                      final isRead =
+                          notif['is_read'] == 1 || notif['is_read'] == true;
                       final type = notif['type'] ?? 'general';
                       final color = _getColor(type);
 
@@ -162,10 +177,14 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                           margin: const EdgeInsets.only(bottom: 10),
                           padding: const EdgeInsets.all(14),
                           decoration: BoxDecoration(
-                            color: isRead ? Colors.white : primaryBlue.withOpacity(0.04),
+                            color: isRead
+                                ? Colors.white
+                                : primaryBlue.withOpacity(0.04),
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
-                              color: isRead ? Colors.transparent : primaryBlue.withOpacity(0.15),
+                              color: isRead
+                                  ? Colors.transparent
+                                  : primaryBlue.withOpacity(0.15),
                             ),
                             boxShadow: [
                               BoxShadow(
@@ -185,7 +204,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                   color: color.withOpacity(0.1),
                                   shape: BoxShape.circle,
                                 ),
-                                child: Icon(_getIcon(type), color: color, size: 20),
+                                child: Icon(_getIcon(type),
+                                    color: color, size: 20),
                               ),
                               const SizedBox(width: 12),
                               // Content
@@ -222,13 +242,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                     Text(
                                       notif['message'] ?? '',
                                       style: TextStyle(
-                                          fontSize: 13, color: Colors.grey[600]),
+                                          fontSize: 13,
+                                          color: Colors.grey[600]),
                                     ),
                                     const SizedBox(height: 6),
                                     Text(
                                       _formatTime(notif['created_at']),
                                       style: TextStyle(
-                                          fontSize: 11, color: Colors.grey[400]),
+                                          fontSize: 11,
+                                          color: Colors.grey[400]),
                                     ),
                                   ],
                                 ),

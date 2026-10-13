@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import '../utils/app_typography.dart';
 import 'package:intl/intl.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
@@ -68,7 +69,9 @@ class _CheckInHistoryScreenState extends State<CheckInHistoryScreen>
       if (permission == LocationPermission.denied ||
           permission == LocationPermission.deniedForever) {
         if (mounted) {
-          _showSnack('Location permission denied. Please enable it in settings.', Colors.red);
+          _showSnack(
+              'Location permission denied. Please enable it in settings.',
+              Colors.red);
         }
         return;
       }
@@ -79,7 +82,8 @@ class _CheckInHistoryScreenState extends State<CheckInHistoryScreen>
       );
 
       // 3. Reverse geocode
-      String address = '${position.latitude.toStringAsFixed(4)}, ${position.longitude.toStringAsFixed(4)}';
+      String address =
+          '${position.latitude.toStringAsFixed(4)}, ${position.longitude.toStringAsFixed(4)}';
       try {
         final geoUrl = Uri.parse(
           'https://nominatim.openstreetmap.org/reverse?format=json&lat=${position.latitude}&lon=${position.longitude}',
@@ -118,7 +122,8 @@ class _CheckInHistoryScreenState extends State<CheckInHistoryScreen>
         _showSnack(result['message'] ?? 'Check-in failed', Colors.red);
       }
     } catch (e) {
-      _showSnack('Check-in error: ${e.toString().substring(0, 50)}', Colors.red);
+      _showSnack(
+          'Check-in error: ${e.toString().substring(0, 50)}', Colors.red);
     } finally {
       if (mounted) {
         setState(() {
@@ -147,7 +152,8 @@ class _CheckInHistoryScreenState extends State<CheckInHistoryScreen>
   String _formatDateTime(String? iso) {
     if (iso == null) return '—';
     try {
-      return DateFormat('dd MMM yyyy, hh:mm a').format(DateTime.parse(iso).toLocal());
+      return DateFormat('dd MMM yyyy, hh:mm a')
+          .format(DateTime.parse(iso).toLocal());
     } catch (_) {
       return iso;
     }
@@ -190,7 +196,8 @@ class _CheckInHistoryScreenState extends State<CheckInHistoryScreen>
       final dateStr = v['created_at'] ?? v['checkin_time'] ?? '';
       String dateKey;
       try {
-        dateKey = DateFormat('EEEE, dd MMMM yyyy').format(DateTime.parse(dateStr).toLocal());
+        dateKey = DateFormat('EEEE, dd MMMM yyyy')
+            .format(DateTime.parse(dateStr).toLocal());
       } catch (_) {
         dateKey = 'Unknown Date';
       }
@@ -212,7 +219,8 @@ class _CheckInHistoryScreenState extends State<CheckInHistoryScreen>
         ),
         title: const Text(
           'Check-In History',
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: Colors.white),
+          style: TextStyle(
+              fontSize: 20, fontWeight: FontWeight.w600, color: Colors.white),
         ),
         actions: [
           IconButton(
@@ -242,17 +250,23 @@ class _CheckInHistoryScreenState extends State<CheckInHistoryScreen>
                 color: primaryBlue.withOpacity(0.1),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.location_off_outlined, size: 60, color: primaryBlue),
+              child: const Icon(Icons.location_off_outlined,
+                  size: 60, color: primaryBlue),
             ),
             const SizedBox(height: 20),
             const Text(
               'No Visits Yet',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Color(0xFF1A202C)),
+              style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF1A202C)),
             ),
             const SizedBox(height: 8),
             Text(
               'Create a visit first, then check in here.',
-              style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+              style: AppTypography.secondary.copyWith(
+                color: Colors.grey[600],
+              ),
             ),
           ],
         ),
@@ -282,7 +296,8 @@ class _CheckInHistoryScreenState extends State<CheckInHistoryScreen>
                 child: Row(
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
                         color: primaryBlue.withOpacity(0.08),
                         borderRadius: BorderRadius.circular(20),
@@ -290,7 +305,8 @@ class _CheckInHistoryScreenState extends State<CheckInHistoryScreen>
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.calendar_today, size: 14, color: primaryBlue),
+                          const Icon(Icons.calendar_today,
+                              size: 14, color: primaryBlue),
                           const SizedBox(width: 6),
                           Text(
                             dateKey,
@@ -306,7 +322,9 @@ class _CheckInHistoryScreenState extends State<CheckInHistoryScreen>
                     const SizedBox(width: 8),
                     Text(
                       '${visits.length} visit${visits.length != 1 ? 's' : ''}',
-                      style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                      style: AppTypography.caption.copyWith(
+                        color: Colors.grey[500],
+                      ),
                     ),
                   ],
                 ),
@@ -316,7 +334,11 @@ class _CheckInHistoryScreenState extends State<CheckInHistoryScreen>
               ...visits.map((visit) => _buildVisitCard(visit)),
 
               if (groupIdx < grouped.length - 1)
-                Divider(height: 24, color: Colors.grey.shade200, indent: 20, endIndent: 20),
+                Divider(
+                    height: 24,
+                    color: Colors.grey.shade200,
+                    indent: 20,
+                    endIndent: 20),
             ],
           );
         },
@@ -328,7 +350,8 @@ class _CheckInHistoryScreenState extends State<CheckInHistoryScreen>
     final isChecked = _isCheckedIn(visit);
     final status = visit['status'] ?? 'pending';
     final isThisCheckingIn = _isCheckingIn && _checkingInVisitId == visit['id'];
-    final canCheckIn = !isChecked && (status == 'pending' || status == 'assigned');
+    final canCheckIn =
+        !isChecked && (status == 'pending' || status == 'assigned');
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
@@ -368,7 +391,8 @@ class _CheckInHistoryScreenState extends State<CheckInHistoryScreen>
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
                     color: _statusColor(status).withOpacity(0.1),
                     borderRadius: BorderRadius.circular(20),
@@ -376,7 +400,8 @@ class _CheckInHistoryScreenState extends State<CheckInHistoryScreen>
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(_statusIcon(status), size: 12, color: _statusColor(status)),
+                      Icon(_statusIcon(status),
+                          size: 12, color: _statusColor(status)),
                       const SizedBox(width: 4),
                       Text(
                         status.toString().replaceAll('_', ' ').toUpperCase(),
@@ -397,7 +422,8 @@ class _CheckInHistoryScreenState extends State<CheckInHistoryScreen>
             if (visit['client_name'] != null)
               _infoRow(Icons.person_outline, visit['client_name']),
             if (visit['executive_name'] != null)
-              _infoRow(Icons.badge_outlined, 'Exec: ${visit['executive_name']}'),
+              _infoRow(
+                  Icons.badge_outlined, 'Exec: ${visit['executive_name']}'),
 
             // Check-in info
             if (isChecked) ...[
@@ -414,7 +440,8 @@ class _CheckInHistoryScreenState extends State<CheckInHistoryScreen>
                   children: [
                     Row(
                       children: [
-                        const Icon(Icons.check_circle, color: tealGreen, size: 16),
+                        const Icon(Icons.check_circle,
+                            color: tealGreen, size: 16),
                         const SizedBox(width: 6),
                         const Text(
                           'CHECKED IN',
@@ -429,10 +456,12 @@ class _CheckInHistoryScreenState extends State<CheckInHistoryScreen>
                     ),
                     const SizedBox(height: 8),
                     if (visit['checkin_time'] != null)
-                      _infoRow(Icons.access_time, _formatDateTime(visit['checkin_time'])),
+                      _infoRow(Icons.access_time,
+                          _formatDateTime(visit['checkin_time'])),
                     if (visit['checkin_address'] != null)
                       _infoRow(Icons.location_on, visit['checkin_address']),
-                    if (visit['checkin_lat'] != null && visit['checkin_lng'] != null)
+                    if (visit['checkin_lat'] != null &&
+                        visit['checkin_lng'] != null)
                       _infoRow(Icons.gps_fixed,
                           'GPS: ${_parseNum(visit['checkin_lat'])}, ${_parseNum(visit['checkin_lng'])}'),
                   ],
@@ -458,7 +487,9 @@ class _CheckInHistoryScreenState extends State<CheckInHistoryScreen>
                         )
                       : const Icon(Icons.gps_fixed, size: 18),
                   label: Text(
-                    isThisCheckingIn ? 'Capturing Location...' : 'Check In with GPS',
+                    isThisCheckingIn
+                        ? 'Capturing Location...'
+                        : 'Check In with GPS',
                     style: const TextStyle(fontWeight: FontWeight.w600),
                   ),
                   style: ElevatedButton.styleFrom(
@@ -489,7 +520,8 @@ class _CheckInHistoryScreenState extends State<CheckInHistoryScreen>
   String _parseNum(dynamic val) {
     if (val == null) return '0';
     if (val is num) return val.toStringAsFixed(5);
-    return double.tryParse(val.toString())?.toStringAsFixed(5) ?? val.toString();
+    return double.tryParse(val.toString())?.toStringAsFixed(5) ??
+        val.toString();
   }
 
   Widget _infoRow(IconData icon, String text) {
@@ -526,9 +558,9 @@ class _CheckInHistoryScreenState extends State<CheckInHistoryScreen>
               child: const Icon(Icons.gps_fixed, color: tealGreen, size: 20),
             ),
             const SizedBox(width: 12),
-            const Text(
+            Text(
               'Confirm Check-In',
-              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
+              style: AppTypography.dialogTitle,
             ),
           ],
         ),
@@ -539,7 +571,10 @@ class _CheckInHistoryScreenState extends State<CheckInHistoryScreen>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text('Cancel', style: TextStyle(color: Colors.grey[600])),
+            child: Text('Cancel',
+                style: AppTypography.secondary.copyWith(
+                  color: Colors.grey[600],
+                )),
           ),
           ElevatedButton.icon(
             onPressed: () {
@@ -551,7 +586,8 @@ class _CheckInHistoryScreenState extends State<CheckInHistoryScreen>
             style: ElevatedButton.styleFrom(
               backgroundColor: tealGreen,
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)),
             ),
           ),
         ],

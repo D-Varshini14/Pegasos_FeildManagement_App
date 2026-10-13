@@ -1,12 +1,13 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
-import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../utils/constants.dart';
+import 'location_service.dart';
+import 'package:intl/intl.dart';
 
 class ApiService {
   // Use dynamic baseUrl from constants
@@ -29,10 +30,73 @@ class ApiService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('token');
     await prefs.remove('user');
-    await prefs.clear();
+    await prefs.remove('profile_image_path');
+    // DO NOT use prefs.clear() — it wipes remember_me_email, theme_mode,
+    // and user-specific visit data
   }
 
-  static Map<String, String> _authHeaders(String token, {bool isMultipart = false}) {
+  static Future<void> performLogoutWithActivity() async {
+    try {
+      final location = await LocationService.getCurrentLocationAddress();
+      await logActivity(type: 'sign_out', location: location);
+    } catch (_) {}
+    await logout();
+  }
+
+  static Future<Map<String, dynamic>> logActivity({
+    required String type,
+    required String location,
+  }) async {
+    try {
+      final token = await _getToken();
+      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+
+      final now = DateTime.now();
+      // Format as YYYY-MM-DD HH:MM:SS for timestamp
+      final timestamp = DateFormat('yyyy-MM-dd HH:mm:ss').format(now);
+      // Format as DD MMM YYYY for date
+      final date = DateFormat('dd MMM yyyy').format(now);
+      // Format as EEEE for day (e.g., Monday)
+      final day = DateFormat('EEEE').format(now);
+
+      final response = await http.post(
+        Uri.parse('$baseUrl/activities/log'),
+        headers: _authHeaders(token),
+        body: jsonEncode({
+          'type': type,
+          'location': location,
+          'timestamp': timestamp,
+          'date': date,
+          'day': day,
+        }),
+      ).timeout(const Duration(seconds: 10));
+
+      return jsonDecode(response.body);
+    } catch (e) {
+      printDebug('Log activity error: $e');
+      return {'success': false, 'message': 'Network error'};
+    }
+  }
+
+  static Future<Map<String, dynamic>> getActivities() async {
+    try {
+      final token = await _getToken();
+      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+
+      final response = await http.get(
+        Uri.parse('$baseUrl/activities'),
+        headers: _authHeaders(token),
+      ).timeout(const Duration(seconds: 10));
+
+      return jsonDecode(response.body);
+    } catch (e) {
+      printDebug('Get activities error: $e');
+      return {'success': false, 'message': 'Network error'};
+    }
+  }
+
+  static Map<String, String> _authHeaders(String token,
+      {bool isMultipart = false}) {
     final headers = {
       'Authorization': 'Bearer $token',
     };
@@ -47,7 +111,7 @@ class ApiService {
   // ─────────────────────────────────────────
 
   // Login
-  
+
   static Future<Map<String, dynamic>> getPublicManagers() async {
     try {
       final response = await http
@@ -60,8 +124,7 @@ class ApiService {
   }
 
   static Future<Map<String, dynamic>> login(
-    String name,
-    String employeeId,
+    String email,
     String password,
   ) async {
     try {
@@ -70,7 +133,7 @@ class ApiService {
             Uri.parse('$baseUrl/auth/login'),
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode({
-              'employeeId': employeeId,
+              'email': email,
               'password': password,
             }),
           )
@@ -126,7 +189,8 @@ class ApiService {
         ));
       }
 
-      var streamedResponse = await request.send().timeout(const Duration(seconds: 15));
+      var streamedResponse =
+          await request.send().timeout(const Duration(seconds: 15));
       var response = await http.Response.fromStream(streamedResponse);
       return jsonDecode(response.body);
     } catch (e) {
@@ -193,7 +257,8 @@ class ApiService {
   static Future<Map<String, dynamic>> getUserProfile() async {
     try {
       final token = await _getToken();
-      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+      if (token == null)
+        return {'success': false, 'message': 'Not authenticated'};
 
       final response = await http
           .get(Uri.parse('$baseUrl/user/profile'), headers: _authHeaders(token))
@@ -204,10 +269,12 @@ class ApiService {
     }
   }
 
-  static Future<Map<String, dynamic>> updateProfile(Map<String, dynamic> data) async {
+  static Future<Map<String, dynamic>> updateProfile(
+      Map<String, dynamic> data) async {
     try {
       final token = await _getToken();
-      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+      if (token == null)
+        return {'success': false, 'message': 'Not authenticated'};
 
       final response = await http
           .put(
@@ -230,10 +297,12 @@ class ApiService {
   static Future<Map<String, dynamic>> getDashboardMetrics() async {
     try {
       final token = await _getToken();
-      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+      if (token == null)
+        return {'success': false, 'message': 'Not authenticated'};
 
       final response = await http
-          .get(Uri.parse('$baseUrl/dashboard/metrics'), headers: _authHeaders(token))
+          .get(Uri.parse('$baseUrl/dashboard/metrics'),
+              headers: _authHeaders(token))
           .timeout(const Duration(seconds: 10));
       return jsonDecode(response.body);
     } catch (e) {
@@ -245,10 +314,12 @@ class ApiService {
   static Future<Map<String, dynamic>> getAdminStats() async {
     try {
       final token = await _getToken();
-      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+      if (token == null)
+        return {'success': false, 'message': 'Not authenticated'};
 
       final response = await http
-          .get(Uri.parse('$baseUrl/admin/dashboard/stats'), headers: _authHeaders(token))
+          .get(Uri.parse('$baseUrl/admin/dashboard/stats'),
+              headers: _authHeaders(token))
           .timeout(const Duration(seconds: 10));
       return jsonDecode(response.body);
     } catch (e) {
@@ -259,10 +330,12 @@ class ApiService {
   static Future<Map<String, dynamic>> getExecutiveTracking() async {
     try {
       final token = await _getToken();
-      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+      if (token == null)
+        return {'success': false, 'message': 'Not authenticated'};
 
       final response = await http
-          .get(Uri.parse('$baseUrl/admin/dashboard/executive-tracking'), headers: _authHeaders(token))
+          .get(Uri.parse('$baseUrl/admin/dashboard/executive-tracking'),
+              headers: _authHeaders(token))
           .timeout(const Duration(seconds: 10));
       return jsonDecode(response.body);
     } catch (e) {
@@ -278,7 +351,8 @@ class ApiService {
   }) async {
     try {
       final token = await _getToken();
-      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+      if (token == null)
+        return {'success': false, 'message': 'Not authenticated'};
 
       String url = '$baseUrl/dashboard/tasks?page=$page&limit=$limit';
       if (status != null) url += '&status=$status';
@@ -296,10 +370,12 @@ class ApiService {
   // TASKS — REQ #5, #7, #10, #12
   // ─────────────────────────────────────────
 
-  static Future<Map<String, dynamic>> getTasks({String? status, bool all = false}) async {
+  static Future<Map<String, dynamic>> getTasks(
+      {String? status, bool all = false}) async {
     try {
       final token = await _getToken();
-      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+      if (token == null)
+        return {'success': false, 'message': 'Not authenticated'};
 
       String url = '$baseUrl/tasks?';
       if (status != null) url += 'status=$status&';
@@ -316,10 +392,12 @@ class ApiService {
 
   // REQ #10 — Update task status (includes marking as pending)
   static Future<Map<String, dynamic>> updateTaskStatus(
-      int taskId, String status, {String? notes}) async {
+      int taskId, String status,
+      {String? notes}) async {
     try {
       final token = await _getToken();
-      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+      if (token == null)
+        return {'success': false, 'message': 'Not authenticated'};
 
       final response = await http
           .put(
@@ -335,10 +413,12 @@ class ApiService {
   }
 
   // Edit pending task details (date, time, title, location, etc.)
-  static Future<Map<String, dynamic>> editTask(int taskId, Map<String, dynamic> data) async {
+  static Future<Map<String, dynamic>> editTask(
+      int taskId, Map<String, dynamic> data) async {
     try {
       final token = await _getToken();
-      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+      if (token == null)
+        return {'success': false, 'message': 'Not authenticated'};
 
       final response = await http
           .put(
@@ -357,10 +437,12 @@ class ApiService {
   static Future<Map<String, dynamic>> deleteTask(int taskId) async {
     try {
       final token = await _getToken();
-      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+      if (token == null)
+        return {'success': false, 'message': 'Not authenticated'};
 
       final response = await http
-          .delete(Uri.parse('$baseUrl/tasks/$taskId'), headers: _authHeaders(token))
+          .delete(Uri.parse('$baseUrl/tasks/$taskId'),
+              headers: _authHeaders(token))
           .timeout(const Duration(seconds: 10));
       return jsonDecode(response.body);
     } catch (e) {
@@ -369,10 +451,12 @@ class ApiService {
   }
 
   // CREATE TASK (Admin)
-  static Future<Map<String, dynamic>> createTask(Map<String, dynamic> taskData) async {
+  static Future<Map<String, dynamic>> createTask(
+      Map<String, dynamic> taskData) async {
     try {
       final token = await _getToken();
-      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+      if (token == null)
+        return {'success': false, 'message': 'Not authenticated'};
 
       final response = await http
           .post(
@@ -394,7 +478,8 @@ class ApiService {
   static Future<Map<String, dynamic>> searchClients(String query) async {
     try {
       final token = await _getToken();
-      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+      if (token == null)
+        return {'success': false, 'message': 'Not authenticated'};
 
       final response = await http
           .get(
@@ -411,7 +496,8 @@ class ApiService {
   static Future<Map<String, dynamic>> getClients() async {
     try {
       final token = await _getToken();
-      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+      if (token == null)
+        return {'success': false, 'message': 'Not authenticated'};
 
       final response = await http
           .get(Uri.parse('$baseUrl/clients'), headers: _authHeaders(token))
@@ -429,7 +515,8 @@ class ApiService {
   static Future<Map<String, dynamic>> getVisits() async {
     try {
       final token = await _getToken();
-      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+      if (token == null)
+        return {'success': false, 'message': 'Not authenticated'};
 
       final response = await http
           .get(Uri.parse('$baseUrl/visits'), headers: _authHeaders(token))
@@ -443,10 +530,12 @@ class ApiService {
   static Future<Map<String, dynamic>> deleteVisit(int visitId) async {
     try {
       final token = await _getToken();
-      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+      if (token == null)
+        return {'success': false, 'message': 'Not authenticated'};
 
       final response = await http
-          .delete(Uri.parse('$baseUrl/visits/$visitId'), headers: _authHeaders(token))
+          .delete(Uri.parse('$baseUrl/visits/$visitId'),
+              headers: _authHeaders(token))
           .timeout(const Duration(seconds: 10));
       return jsonDecode(response.body);
     } catch (e) {
@@ -465,7 +554,8 @@ class ApiService {
   }) async {
     try {
       final token = await _getToken();
-      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+      if (token == null)
+        return {'success': false, 'message': 'Not authenticated'};
 
       final response = await http
           .post(
@@ -489,10 +579,12 @@ class ApiService {
 
   // UPDATE VISIT STATUS
   static Future<Map<String, dynamic>> updateVisitStatus(
-      int visitId, String status, {String? notes}) async {
+      int visitId, String status,
+      {String? notes}) async {
     try {
       final token = await _getToken();
-      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+      if (token == null)
+        return {'success': false, 'message': 'Not authenticated'};
 
       final response = await http
           .put(
@@ -516,7 +608,8 @@ class ApiService {
   }) async {
     try {
       final token = await _getToken();
-      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+      if (token == null)
+        return {'success': false, 'message': 'Not authenticated'};
 
       final response = await http
           .post(
@@ -539,7 +632,8 @@ class ApiService {
   }) async {
     try {
       final token = await _getToken();
-      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+      if (token == null)
+        return {'success': false, 'message': 'Not authenticated'};
 
       final response = await http
           .post(
@@ -561,7 +655,8 @@ class ApiService {
   static Future<Map<String, dynamic>> getLeads({String? status}) async {
     try {
       final token = await _getToken();
-      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+      if (token == null)
+        return {'success': false, 'message': 'Not authenticated'};
 
       String url = '$baseUrl/leads';
       if (status != null) url += '?status=$status';
@@ -576,10 +671,12 @@ class ApiService {
   }
 
   static Future<Map<String, dynamic>> updateLeadStatus(
-      int leadId, String status, {String? notes}) async {
+      int leadId, String status,
+      {String? notes}) async {
     try {
       final token = await _getToken();
-      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+      if (token == null)
+        return {'success': false, 'message': 'Not authenticated'};
 
       final response = await http
           .put(
@@ -598,7 +695,8 @@ class ApiService {
       int leadId, String classification) async {
     try {
       final token = await _getToken();
-      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+      if (token == null)
+        return {'success': false, 'message': 'Not authenticated'};
 
       final response = await http
           .put(
@@ -616,10 +714,12 @@ class ApiService {
   static Future<Map<String, dynamic>> getLeadProposals(int leadId) async {
     try {
       final token = await _getToken();
-      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+      if (token == null)
+        return {'success': false, 'message': 'Not authenticated'};
 
       final response = await http
-          .get(Uri.parse('$baseUrl/leads/$leadId/proposals'), headers: _authHeaders(token))
+          .get(Uri.parse('$baseUrl/leads/$leadId/proposals'),
+              headers: _authHeaders(token))
           .timeout(const Duration(seconds: 10));
       return jsonDecode(response.body);
     } catch (e) {
@@ -627,29 +727,35 @@ class ApiService {
     }
   }
 
-  static Future<Map<String, dynamic>> uploadLeadProposal(int leadId, List<int> fileBytes, String fileName) async {
+  static Future<Map<String, dynamic>> uploadLeadProposal(
+      int leadId, List<int> fileBytes, String fileName) async {
     try {
       final token = await _getToken();
-      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+      if (token == null)
+        return {'success': false, 'message': 'Not authenticated'};
 
-      var request = http.MultipartRequest('POST', Uri.parse('$baseUrl/leads/$leadId/proposals'));
+      var request = http.MultipartRequest(
+          'POST', Uri.parse('$baseUrl/leads/$leadId/proposals'));
       request.headers.addAll(_authHeaders(token, isMultipart: true));
-      
-      request.files.add(http.MultipartFile.fromBytes('proposal_file', fileBytes, filename: fileName));
+
+      request.files.add(http.MultipartFile.fromBytes('proposal_file', fileBytes,
+          filename: fileName));
 
       var streamedResponse = await request.send();
       var response = await http.Response.fromStream(streamedResponse);
-      
+
       return jsonDecode(response.body);
     } catch (e) {
       return {'success': false, 'message': 'Network error: $e'};
     }
   }
 
-  static Future<Map<String, dynamic>> updateProposalStatus(int proposalId, String status) async {
+  static Future<Map<String, dynamic>> updateProposalStatus(
+      int proposalId, String status) async {
     try {
       final token = await _getToken();
-      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+      if (token == null)
+        return {'success': false, 'message': 'Not authenticated'};
 
       final response = await http
           .put(
@@ -666,13 +772,16 @@ class ApiService {
 
   static Future<http.Response> downloadProposal(int proposalId) async {
     final token = await _getToken();
-    return http.get(Uri.parse('$baseUrl/proposals/$proposalId/download'), headers: _authHeaders(token ?? ''));
+    return http.get(Uri.parse('$baseUrl/proposals/$proposalId/download'),
+        headers: _authHeaders(token ?? ''));
   }
 
-  static Future<Map<String, dynamic>> createLead(Map<String, dynamic> leadData) async {
+  static Future<Map<String, dynamic>> createLead(
+      Map<String, dynamic> leadData) async {
     try {
       final token = await _getToken();
-      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+      if (token == null)
+        return {'success': false, 'message': 'Not authenticated'};
 
       final response = await http
           .post(
@@ -690,10 +799,12 @@ class ApiService {
   static Future<Map<String, dynamic>> deleteLead(int leadId) async {
     try {
       final token = await _getToken();
-      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+      if (token == null)
+        return {'success': false, 'message': 'Not authenticated'};
 
       final response = await http
-          .delete(Uri.parse('$baseUrl/leads/$leadId'), headers: _authHeaders(token))
+          .delete(Uri.parse('$baseUrl/leads/$leadId'),
+              headers: _authHeaders(token))
           .timeout(const Duration(seconds: 10));
       return jsonDecode(response.body);
     } catch (e) {
@@ -708,10 +819,12 @@ class ApiService {
   static Future<Map<String, dynamic>> getNotifications() async {
     try {
       final token = await _getToken();
-      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+      if (token == null)
+        return {'success': false, 'message': 'Not authenticated'};
 
       final response = await http
-          .get(Uri.parse('$baseUrl/notifications'), headers: _authHeaders(token))
+          .get(Uri.parse('$baseUrl/notifications'),
+              headers: _authHeaders(token))
           .timeout(const Duration(seconds: 10));
       return jsonDecode(response.body);
     } catch (e) {
@@ -722,7 +835,8 @@ class ApiService {
   static Future<Map<String, dynamic>> markNotificationRead(int notifId) async {
     try {
       final token = await _getToken();
-      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+      if (token == null)
+        return {'success': false, 'message': 'Not authenticated'};
 
       final response = await http
           .put(
@@ -739,7 +853,8 @@ class ApiService {
   static Future<Map<String, dynamic>> markAllNotificationsRead() async {
     try {
       final token = await _getToken();
-      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+      if (token == null)
+        return {'success': false, 'message': 'Not authenticated'};
 
       final response = await http
           .put(
@@ -757,10 +872,12 @@ class ApiService {
   static Future<Map<String, dynamic>> getUnreadNotificationCount() async {
     try {
       final token = await _getToken();
-      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+      if (token == null)
+        return {'success': false, 'message': 'Not authenticated'};
 
       final response = await http
-          .get(Uri.parse('$baseUrl/notifications/unread-count'), headers: _authHeaders(token))
+          .get(Uri.parse('$baseUrl/notifications/unread-count'),
+              headers: _authHeaders(token))
           .timeout(const Duration(seconds: 5));
       return jsonDecode(response.body);
     } catch (e) {
@@ -778,13 +895,15 @@ class ApiService {
   }) async {
     try {
       final token = await _getToken();
-      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+      if (token == null)
+        return {'success': false, 'message': 'Not authenticated'};
 
       final response = await http
           .post(
             Uri.parse('$baseUrl/communication/call'),
             headers: _authHeaders(token),
-            body: jsonEncode({'clientPhone': clientPhone, 'clientName': clientName}),
+            body: jsonEncode(
+                {'clientPhone': clientPhone, 'clientName': clientName}),
           )
           .timeout(const Duration(seconds: 10));
       return jsonDecode(response.body);
@@ -802,7 +921,8 @@ class ApiService {
   }) async {
     try {
       final token = await _getToken();
-      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+      if (token == null)
+        return {'success': false, 'message': 'Not authenticated'};
 
       final response = await http
           .post(
@@ -826,10 +946,12 @@ class ApiService {
   // LEAVES
   // ─────────────────────────────────────────
 
-  static Future<Map<String, dynamic>> applyLeave(Map<String, dynamic> leaveData) async {
+  static Future<Map<String, dynamic>> applyLeave(
+      Map<String, dynamic> leaveData) async {
     try {
       final token = await _getToken();
-      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+      if (token == null)
+        return {'success': false, 'message': 'Not authenticated'};
 
       final response = await http
           .post(
@@ -847,7 +969,8 @@ class ApiService {
   static Future<Map<String, dynamic>> getLeaves() async {
     try {
       final token = await _getToken();
-      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+      if (token == null)
+        return {'success': false, 'message': 'Not authenticated'};
 
       final response = await http
           .get(Uri.parse('$baseUrl/leaves'), headers: _authHeaders(token))
@@ -865,10 +988,12 @@ class ApiService {
   static Future<Map<String, dynamic>> getExecutives() async {
     try {
       final token = await _getToken();
-      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+      if (token == null)
+        return {'success': false, 'message': 'Not authenticated'};
 
       final response = await http
-          .get(Uri.parse('$baseUrl/admin/executives'), headers: _authHeaders(token))
+          .get(Uri.parse('$baseUrl/admin/executives'),
+              headers: _authHeaders(token))
           .timeout(const Duration(seconds: 10));
       return jsonDecode(response.body);
     } catch (e) {
@@ -879,10 +1004,12 @@ class ApiService {
   static Future<Map<String, dynamic>> getManagers() async {
     try {
       final token = await _getToken();
-      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+      if (token == null)
+        return {'success': false, 'message': 'Not authenticated'};
 
       final response = await http
-          .get(Uri.parse('$baseUrl/admin/managers'), headers: _authHeaders(token))
+          .get(Uri.parse('$baseUrl/admin/managers'),
+              headers: _authHeaders(token))
           .timeout(const Duration(seconds: 10));
       return jsonDecode(response.body);
     } catch (e) {
@@ -890,10 +1017,12 @@ class ApiService {
     }
   }
 
-  static Future<Map<String, dynamic>> assignManager(int executiveId, int? managerId) async {
+  static Future<Map<String, dynamic>> assignManager(
+      int executiveId, int? managerId) async {
     try {
       final token = await _getToken();
-      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+      if (token == null)
+        return {'success': false, 'message': 'Not authenticated'};
 
       final response = await http
           .put(
@@ -909,10 +1038,12 @@ class ApiService {
   }
 
   // Get tasks for a specific executive
-  static Future<Map<String, dynamic>> getExecutiveTasks(int executiveId, {String? status}) async {
+  static Future<Map<String, dynamic>> getExecutiveTasks(int executiveId,
+      {String? status}) async {
     try {
       final token = await _getToken();
-      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+      if (token == null)
+        return {'success': false, 'message': 'Not authenticated'};
 
       String url = '$baseUrl/admin/dashboard/executive-tasks/$executiveId';
       if (status != null) url += '?status=$status';
@@ -927,10 +1058,12 @@ class ApiService {
   }
 
   // Admin update task details
-  static Future<Map<String, dynamic>> adminUpdateTask(int taskId, Map<String, dynamic> data) async {
+  static Future<Map<String, dynamic>> adminUpdateTask(
+      int taskId, Map<String, dynamic> data) async {
     try {
       final token = await _getToken();
-      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+      if (token == null)
+        return {'success': false, 'message': 'Not authenticated'};
 
       final response = await http
           .put(
@@ -955,7 +1088,8 @@ class ApiService {
       if (token == null) return null;
 
       final response = await http
-          .get(Uri.parse('$baseUrl/export/$entity'), headers: _authHeaders(token))
+          .get(Uri.parse('$baseUrl/export/$entity'),
+              headers: _authHeaders(token))
           .timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
@@ -973,7 +1107,7 @@ class ApiService {
   static Future<bool> testConnection() async {
     try {
       final response = await http
-          .get(Uri.parse('http://localhost:3000/api/health'))
+          .get(Uri.parse('${AppStrings.baseUrl}/health'))
           .timeout(const Duration(seconds: 5));
       return response.statusCode == 200;
     } catch (e) {
@@ -985,10 +1119,12 @@ class ApiService {
   // EXPENSES (Phase 9)
   // ─────────────────────────────────────────
 
-  static Future<Map<String, dynamic>> getExpenses({int? userId, bool all = false}) async {
+  static Future<Map<String, dynamic>> getExpenses(
+      {int? userId, bool all = false}) async {
     try {
       final token = await _getToken();
-      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+      if (token == null)
+        return {'success': false, 'message': 'Not authenticated'};
 
       String url = '$baseUrl/expenses';
       if (all) {
@@ -1009,7 +1145,8 @@ class ApiService {
   static Future<Map<String, dynamic>> getExpense(int id) async {
     try {
       final token = await _getToken();
-      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+      if (token == null)
+        return {'success': false, 'message': 'Not authenticated'};
 
       final response = await http
           .get(Uri.parse('$baseUrl/expenses/$id'), headers: _authHeaders(token))
@@ -1023,7 +1160,8 @@ class ApiService {
   static Future<Map<String, dynamic>> createExpense(String title) async {
     try {
       final token = await _getToken();
-      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+      if (token == null)
+        return {'success': false, 'message': 'Not authenticated'};
 
       final response = await http
           .post(
@@ -1041,7 +1179,8 @@ class ApiService {
   static Future<Map<String, dynamic>> deleteExpense(int id) async {
     try {
       final token = await _getToken();
-      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+      if (token == null)
+        return {'success': false, 'message': 'Not authenticated'};
 
       final response = await http
           .delete(
@@ -1055,16 +1194,19 @@ class ApiService {
     }
   }
 
-  static Future<Map<String, dynamic>> updateExpenseStatus(int id, String status, double amountClaimed) async {
+  static Future<Map<String, dynamic>> updateExpenseStatus(
+      int id, String status, double amountClaimed) async {
     try {
       final token = await _getToken();
-      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+      if (token == null)
+        return {'success': false, 'message': 'Not authenticated'};
 
       final response = await http
           .put(
             Uri.parse('$baseUrl/expenses/$id/status'),
             headers: _authHeaders(token),
-            body: jsonEncode({'status': status, 'amount_claimed': amountClaimed}),
+            body:
+                jsonEncode({'status': status, 'amount_claimed': amountClaimed}),
           )
           .timeout(const Duration(seconds: 10));
       return jsonDecode(response.body);
@@ -1086,9 +1228,11 @@ class ApiService {
   }) async {
     try {
       final token = await _getToken();
-      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+      if (token == null)
+        return {'success': false, 'message': 'Not authenticated'};
 
-      var request = http.MultipartRequest('POST', Uri.parse('$baseUrl/expenses/forms'));
+      var request =
+          http.MultipartRequest('POST', Uri.parse('$baseUrl/expenses/forms'));
       request.headers.addAll(_authHeaders(token, isMultipart: true));
 
       request.fields['expense_id'] = expenseId.toString();
@@ -1119,10 +1263,12 @@ class ApiService {
   static Future<Map<String, dynamic>> deleteExpenseForm(int formId) async {
     try {
       final token = await _getToken();
-      if (token == null) return {'success': false, 'message': 'Not authenticated'};
+      if (token == null)
+        return {'success': false, 'message': 'Not authenticated'};
 
       final response = await http
-          .delete(Uri.parse('$baseUrl/expenses/forms/$formId'), headers: _authHeaders(token))
+          .delete(Uri.parse('$baseUrl/expenses/forms/$formId'),
+              headers: _authHeaders(token))
           .timeout(const Duration(seconds: 10));
       return jsonDecode(response.body);
     } catch (e) {

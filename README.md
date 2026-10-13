@@ -1,253 +1,101 @@
-# Pegasus Field App – Consolidated Requirements
+# Pegasos Field Management App
 
-## 1. Lead Management Enhancements
+A comprehensive mobile and web application designed for field executives and managers to streamline daily operations, track visits, manage leads, and monitor team performance.
 
-### 1.1 Multiple Proposal Uploads
+## 🌟 Key Features
 
-* In the Lead section, when a lead reaches the **Proposal** stage, Field Executives should be able to upload **multiple proposal documents** for the same lead.
-* Each proposal should have its own status:
+- **Role-Based Access**: Dedicated panels for Admins and Executives.
+- **Dynamic Dashboard**: Real-time metrics and charts for monthly visits, targets, and feedback.
+- **Task & Visit Management**: Check-in with GPS tracking, create/update visits, and view client history.
+- **Lead Management**: Complete 6-stage pipeline (New, Contacted, Qualified, Proposal, Won, Lost) with classifications.
+- **Dark/Light Mode**: Full theme customization available across the app.
+- **Notifications & Reminders**: Email notifications for password resets and visit updates.
+- **Offline & Cache**: Saves login credentials and preferences securely on the device.
 
-  * Won
-  * Lost
-* Proposal history must be maintained for each lead.
+## 🛠️ Technology Stack
 
-### 1.2 Lead Status Classification
+- **Frontend**: Flutter (Dart) - supports Android, iOS, and Web.
+- **Backend**: Node.js + Express.js.
+- **Database**: MySQL.
+- **State Management**: Provider.
+- **Authentication**: JWT & OTP-based password resets.
 
-Add a separate **Status** feature independent of the existing lead stages.
+## 📋 Prerequisites
 
-#### Existing Lead Stages
+Before you begin, ensure you have the following installed:
+- [Flutter SDK](https://docs.flutter.dev/get-started/install) (latest stable version)
+- [Node.js](https://nodejs.org/) (v16 or higher)
+- [MySQL](https://www.mysql.com/) Server (v8 or higher)
 
-* New
-* Contacted
-* Qualified
-* Proposal
-* Won
-* Lost
+## 🚀 Setup Instructions
 
-#### Status Categories
+### 1. Backend Setup
 
-* Hot – High-priority leads requiring immediate attention.
-* Warm – Leads with active and regular communication.
-* Cold – Leads with little or no response.
+1. Navigate to the backend directory:
+   ```bash
+   cd field_management_backend
+   ```
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+3. Setup the database:
+   - Create a MySQL database (e.g. `pegasos_db`).
+   - Import the database schema (if provided).
+4. Configure environment variables:
+   - The `.env` file is intentionally ignored by git for security.
+   - Create a new `.env` file in the `field_management_backend` folder using the following template:
+     ```env
+     PORT=3000
+     DB_HOST=localhost
+     DB_USER=your_db_user
+     DB_PASSWORD=your_db_password
+     DB_NAME=pegasos_db
+     JWT_SECRET=your_super_secret_jwt_key
+     EMAIL_HOST=smtp.gmail.com
+     EMAIL_PORT=587
+     EMAIL_SECURE=false
+     EMAIL_USER=your_email@gmail.com
+     EMAIL_PASS=your_app_password
+     EMAIL_FROM="Pegasos Field App <your_email@gmail.com>"
+     ```
+   *(Note: If using Gmail, you must generate an **App Password**; your regular password will not work).*
+5. Start the server:
+   ```bash
+   node server.js
+   ```
 
-#### Functional Changes
+### 2. Frontend Setup
 
-* Add a **Status dropdown** below the existing lead-stage dropdown.
-* Available options:
+1. Navigate to the root of the flutter project:
+   ```bash
+   cd ..
+   ```
+2. Install Flutter dependencies:
+   ```bash
+   flutter pub get
+   ```
+3. Run the app:
+   ```bash
+   flutter run
+   ```
+   *(To run on a specific device, use `flutter run -d chrome` or select your mobile emulator).*
 
-  * Hot
-  * Warm
-  * Cold
-* Create a separate **Status tab** in the Lead module.
-* The Status tab should display all leads categorized as Hot, Warm, or Cold.
-* Any status selected for a lead must automatically reflect in the Status tab.
-* A lead can simultaneously have:
+## 🔒 Git & Security Guidelines
 
-  * A Lead Stage (e.g., Proposal)
-  * A Lead Status (e.g., Hot)
+- **`.gitignore`**: The repository is pre-configured with `.gitignore` files in both the root and the backend directories. This ensures that sensitive files like `.env`, database dumps, and heavy directories like `node_modules/` or `build/` are never accidentally committed.
+- **Never push secrets**: Never commit your `EMAIL_PASS`, `JWT_SECRET`, or `DB_PASSWORD` to GitHub.
 
----
+## 📦 Deployment
 
-## 2. Task Management Enhancements
+### Backend
+- Can be deployed to services like Render, Heroku, or an AWS EC2 instance.
+- Make sure to add your `.env` variables in your hosting provider's dashboard.
 
-### Task Completion Rules
-
-* Once a task is marked as **Completed**, it:
-
-  * Cannot be deleted.
-  * Cannot be reverted to Pending.
-
-### Task Editing Rules
-
-* Pending tasks should remain editable.
-* Users should be able to modify:
-
-  * Title
-  * Description
-  * Date
-  * Time
-  * Other task details
-
-### Overdue Tasks
-
-* Missed/Overdue tasks should be editable to allow rescheduling and updates.
-
----
-
-## 3. Profile Management Restrictions
-
-* Email ID and Phone Number must be mandatory during account creation.
-* After account creation:
-
-  * Email ID cannot be edited.
-  * Phone Number cannot be edited.
-* Other profile fields may remain editable.
-
----
-
-## 4. Account Creation Enhancements
-
-* Add a **Role** dropdown during account creation.
-* Supported roles:
-
-  * Field Executive
-  * Manager
-
----
-
-## 5. Manager Assignment & Administration
-
-### Admin Permissions
-
-* Admin should be able to assign Field Executives to Managers.
-
-### Managers Tab
-
-Create a dedicated Managers tab displaying:
-
-* List of Managers.
-* Number of Field Executives assigned to each Manager.
-* Manager assignment details.
+### Frontend
+- **Android**: `flutter build apk` or `flutter build appbundle`.
+- **iOS**: `flutter build ipa`.
+- **Web**: `flutter build web`.
 
 ---
-
-## 6. Manager Panel Development
-
-Create a dedicated Manager Panel similar to the Admin Panel with role-based access restrictions.
-
-### Manager Capabilities
-
-* View assigned Field Executives only.
-* View leads, tasks, and activities of assigned team members only.
-* Assign tasks to assigned Field Executives.
-* Monitor team performance and activities.
-
-### Access Restrictions
-
-* Managers must not have access to data belonging to other Managers or their teams.
-
----
-
-## 7. Forgot Password & Security Enhancements
-
-### OTP Changes
-
-* Reduce OTP validity from 10 minutes to 5 minutes.
-* Display a visible countdown timer on the OTP verification screen.
-
-### Resend OTP
-
-* Add a **Resend OTP** option.
-* Users should be able to request a new OTP after expiration.
-* A new OTP should be generated and sent to the registered email/mobile number.
-
-### Password Policy
-
-Passwords must contain:
-
-* Minimum 8 characters.
-* At least one uppercase letter.
-* At least one lowercase letter.
-* At least one number.
-* At least one special character.
-
-Display validation messages while creating or resetting passwords.
-
----
-
-## 8. Data Export Functionality
-
-### Manager Access
-
-Managers should be able to export data related only to their assigned Field Executives, including:
-
-* Leads
-* Proposals
-* Tasks
-* Activity history
-* Performance records
-
-### Admin Access
-
-Admins should be able to export:
-
-* Employee details
-* Leads
-* Proposals
-* Tasks
-* Activity logs
-* System records
-
-### Export Options
-
-* Provide an Export Data option in Admin and Manager panels.
-* Supported formats:
-
-  * Excel (.xlsx)
-  * CSV (.csv)
-
-### Access Control
-
-* Field Executives must not have export permissions.
-* Export functionality should be restricted to Managers and Admins.
-
----
-
-## 9. Expense & Expense Form Module Enhancements
-
-### 9.1 Expense Module
-
-#### File Attachment Fix
-
-* Fix the file attachment functionality in the Expenses section.
-* Users should be able to upload supporting documents successfully.
-* Expense submission should work correctly once attachments are uploaded.
-
-#### UI Enhancement
-
-* Replicate the Tasks module design.
-* Display:
-
-  * List of all created expenses.
-  * "+" (Add Expense) button at the bottom corner.
-
-#### Expense Creation
-
-* Clicking "+" should open the Expense Creation Form.
-* Newly created expenses should appear in the list view.
-
-### 9.2 Expense Form Module
-
-#### File Attachment Fix
-
-* Fix the file upload functionality in the Expense Form section.
-* Users should be able to upload bills, invoices, receipts, and supporting documents without issues.
-
-#### UI Enhancement
-
-* Replicate the Tasks module design.
-* Display:
-
-  * List of all submitted expense forms.
-  * "+" (Add Expense Form) button at the bottom corner.
-
-#### Expense Form Creation
-
-Users should be able to enter:
-
-* Expense Category (Food, Travel, Accommodation, etc.)
-* Amount
-* Description/Remarks
-* Supporting Attachment
-
-After submission, the expense form should appear in the list view.
-
-### Expected Outcome
-
-Both Expenses and Expense Forms should function similarly to the Tasks module:
-
-* List view of records.
-* "+" button for creating new entries.
-* Fully functional file uploads.
-* Newly created records visible immediately after submission.
-* Consistent UI and user experience.
+*Developed for the Pegasos Field Management Team.*

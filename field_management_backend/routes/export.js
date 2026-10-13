@@ -82,6 +82,21 @@ router.get('/:entity', authenticateToken, async (req, res) => {
         prefix = 'expenses';
         break;
 
+      case 'activities':
+        query = `
+          SELECT a.id, a.type, a.timestamp, a.date, a.day, a.location, a.created_at,
+                 u.name as executive_name, u.employee_id 
+          FROM activities a
+          JOIN users u ON a.user_id = u.id
+        `;
+        if (req.user.role === 'manager') {
+          query += ` WHERE u.manager_id = ?`;
+          params.push(req.user.userId);
+        }
+        query += ` ORDER BY a.timestamp DESC`;
+        prefix = 'activities';
+        break;
+
       default:
         return res.status(400).json({ success: false, message: 'Invalid entity to export' });
     }

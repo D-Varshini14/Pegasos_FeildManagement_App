@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/app_typography.dart';
 import '../services/api_service.dart';
 import 'expense_form_screen.dart';
 import 'package:intl/intl.dart';
@@ -13,7 +14,7 @@ class TeamExpensesScreen extends StatefulWidget {
 class _TeamExpensesScreenState extends State<TeamExpensesScreen> {
   static const Color primaryBlue = Color(0xFF0F3A68);
   static const Color lightGray = Color(0xFFF1F5F9);
-  
+
   bool _isLoading = true;
   List<dynamic> _expenses = [];
 
@@ -35,13 +36,15 @@ class _TeamExpensesScreenState extends State<TeamExpensesScreen> {
       setState(() => _isLoading = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(response['message'] ?? 'Failed to load expenses')),
+          SnackBar(
+              content: Text(response['message'] ?? 'Failed to load expenses')),
         );
       }
     }
   }
 
-  Future<void> _updateStatus(int expenseId, String newStatus, double amountClaimed) async {
+  Future<void> _updateStatus(
+      int expenseId, String newStatus, double amountClaimed) async {
     // If approving, allow manager to override the claimed amount
     double finalAmount = amountClaimed;
     if (newStatus == 'Approved') {
@@ -53,10 +56,13 @@ class _TeamExpensesScreenState extends State<TeamExpensesScreen> {
           content: TextField(
             controller: controller,
             keyboardType: TextInputType.number,
-            decoration: const InputDecoration(labelText: 'Final Approved Amount (₹)'),
+            decoration:
+                const InputDecoration(labelText: 'Final Approved Amount (₹)'),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancel')),
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
               onPressed: () {
@@ -74,21 +80,26 @@ class _TeamExpensesScreenState extends State<TeamExpensesScreen> {
       if (result != true) return;
     }
 
-    final response = await ApiService.updateExpenseStatus(expenseId, newStatus, finalAmount);
+    final response =
+        await ApiService.updateExpenseStatus(expenseId, newStatus, finalAmount);
     if (response['success'] == true) {
       _loadExpenses();
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(response['message'] ?? 'Failed to update status')),
+        SnackBar(
+            content: Text(response['message'] ?? 'Failed to update status')),
       );
     }
   }
 
   Color _getStatusColor(String status) {
     switch (status.toLowerCase()) {
-      case 'approved': return Colors.green;
-      case 'rejected': return Colors.red;
-      default: return Colors.orange;
+      case 'approved':
+        return Colors.green;
+      case 'rejected':
+        return Colors.red;
+      default:
+        return Colors.orange;
     }
   }
 
@@ -99,7 +110,10 @@ class _TeamExpensesScreenState extends State<TeamExpensesScreen> {
       appBar: AppBar(
         backgroundColor: primaryBlue,
         elevation: 0,
-        title: const Text('Team Expenses Approvals', style: TextStyle(color: Colors.white)),
+        title: Text('Team Expenses Approvals',
+            style: AppTypography.buttonMedium.copyWith(
+              color: Colors.white,
+            )),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.pop(context),
@@ -124,11 +138,15 @@ class _TeamExpensesScreenState extends State<TeamExpensesScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.check_circle_outline, size: 80, color: Colors.grey.shade400),
+          Icon(Icons.check_circle_outline,
+              size: 80, color: Colors.grey.shade400),
           const SizedBox(height: 16),
           Text(
             'All caught up!',
-            style: TextStyle(fontSize: 18, color: Colors.grey.shade600, fontWeight: FontWeight.w500),
+            style: TextStyle(
+                fontSize: 18,
+                color: Colors.grey.shade600,
+                fontWeight: FontWeight.w500),
           ),
           const SizedBox(height: 8),
           Text(
@@ -148,11 +166,12 @@ class _TeamExpensesScreenState extends State<TeamExpensesScreen> {
         final expense = _expenses[index];
         final status = expense['status'] ?? 'Pending';
         final date = DateTime.tryParse(expense['created_at']) ?? DateTime.now();
-        
+
         return Card(
           elevation: 2,
           margin: const EdgeInsets.only(bottom: 16),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           child: InkWell(
             onTap: () async {
               await Navigator.push(
@@ -174,10 +193,12 @@ class _TeamExpensesScreenState extends State<TeamExpensesScreen> {
                     children: [
                       Text(
                         '${expense['title'] ?? 'Claim #${expense['id']}'} - ${expense['user_name']}',
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 16),
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
                           color: _getStatusColor(status).withOpacity(0.1),
                           borderRadius: BorderRadius.circular(12),
@@ -197,8 +218,10 @@ class _TeamExpensesScreenState extends State<TeamExpensesScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      _buildMetric('Total Req', expense['total_amount_request']),
-                      _buildMetric('In Progress', expense['amount_in_progress']),
+                      _buildMetric(
+                          'Total Req', expense['total_amount_request']),
+                      _buildMetric(
+                          'In Progress', expense['amount_in_progress']),
                       _buildMetric('Claimed', expense['amount_claimed']),
                     ],
                   ),
@@ -208,23 +231,33 @@ class _TeamExpensesScreenState extends State<TeamExpensesScreen> {
                     children: [
                       Text(
                         'Date: ${DateFormat('MMM dd, yyyy').format(date)}',
-                        style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                        style: TextStyle(
+                            color: Colors.grey.shade600, fontSize: 12),
                       ),
                       if (status == 'Pending')
                         Row(
                           children: [
                             TextButton(
-                              onPressed: () => _updateStatus(expense['id'], 'Rejected', 0),
-                              child: const Text('Reject', style: TextStyle(color: Colors.red)),
+                              onPressed: () =>
+                                  _updateStatus(expense['id'], 'Rejected', 0),
+                              child: Text('Reject',
+                                  style: AppTypography.secondary.copyWith(
+                                    color: Colors.red,
+                                  )),
                             ),
                             ElevatedButton(
-                              style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                              style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.green),
                               onPressed: () => _updateStatus(
-                                expense['id'], 
-                                'Approved', 
-                                double.parse((expense['amount_in_progress'] ?? 0).toString())
-                              ),
-                              child: const Text('Approve', style: TextStyle(color: Colors.white)),
+                                  expense['id'],
+                                  'Approved',
+                                  double.parse(
+                                      (expense['amount_in_progress'] ?? 0)
+                                          .toString())),
+                              child: Text('Approve',
+                                  style: AppTypography.buttonMedium.copyWith(
+                                    color: Colors.white,
+                                  )),
                             ),
                           ],
                         )
@@ -243,7 +276,8 @@ class _TeamExpensesScreenState extends State<TeamExpensesScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+        Text(label,
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
         const SizedBox(height: 4),
         Text(
           '₹${double.parse((amount ?? 0).toString()).toStringAsFixed(0)}',

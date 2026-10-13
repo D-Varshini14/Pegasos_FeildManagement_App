@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/app_typography.dart';
 import '../services/api_service.dart';
 import 'expense_form_screen.dart';
 import 'package:intl/intl.dart';
@@ -13,7 +14,7 @@ class ExpenseScreen extends StatefulWidget {
 class _ExpenseScreenState extends State<ExpenseScreen> {
   static const Color primaryBlue = Color(0xFF0F3A68);
   static const Color lightGray = Color(0xFFF1F5F9);
-  
+
   bool _isLoading = true;
   List<dynamic> _expenses = [];
 
@@ -35,7 +36,8 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
       setState(() => _isLoading = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(response['message'] ?? 'Failed to load expenses')),
+          SnackBar(
+              content: Text(response['message'] ?? 'Failed to load expenses')),
         );
       }
     }
@@ -81,7 +83,7 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
 
     // Create an empty expense claim with title
     final res = await ApiService.createExpense(controller.text);
-    
+
     if (mounted) {
       Navigator.pop(context); // Close loading dialog
     }
@@ -101,7 +103,9 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
     } else {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(res['message'] ?? 'Failed to create expense claim')),
+          SnackBar(
+              content:
+                  Text(res['message'] ?? 'Failed to create expense claim')),
         );
       }
     }
@@ -109,9 +113,12 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
 
   Color _getStatusColor(String status) {
     switch (status.toLowerCase()) {
-      case 'approved': return Colors.green;
-      case 'rejected': return Colors.red;
-      default: return Colors.orange;
+      case 'approved':
+        return Colors.green;
+      case 'rejected':
+        return Colors.red;
+      default:
+        return Colors.orange;
     }
   }
 
@@ -122,7 +129,10 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
       appBar: AppBar(
         backgroundColor: primaryBlue,
         elevation: 0,
-        title: const Text('Expenses', style: TextStyle(color: Colors.white)),
+        title: Text('Expenses',
+            style: AppTypography.buttonMedium.copyWith(
+              color: Colors.white,
+            )),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.pop(context),
@@ -152,12 +162,18 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Delete Expense'),
-        content: const Text('Are you sure you want to delete this expense claim?'),
+        content:
+            const Text('Are you sure you want to delete this expense claim?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
           TextButton(
-            onPressed: () => Navigator.pop(ctx, true), 
-            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text('Delete',
+                style: AppTypography.secondary.copyWith(
+                  color: Colors.red,
+                )),
           ),
         ],
       ),
@@ -188,7 +204,10 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
           const SizedBox(height: 16),
           Text(
             'No expenses found',
-            style: TextStyle(fontSize: 18, color: Colors.grey.shade600, fontWeight: FontWeight.w500),
+            style: TextStyle(
+                fontSize: 18,
+                color: Colors.grey.shade600,
+                fontWeight: FontWeight.w500),
           ),
           const SizedBox(height: 8),
           Text(
@@ -208,11 +227,12 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
         final expense = _expenses[index];
         final status = expense['status'] ?? 'Pending';
         final date = DateTime.tryParse(expense['created_at']) ?? DateTime.now();
-        
+
         return Card(
           elevation: 2,
           margin: const EdgeInsets.only(bottom: 16),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           child: InkWell(
             onTap: () async {
               // Navigate to details/forms screen
@@ -235,10 +255,12 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                     children: [
                       Text(
                         expense['title'] ?? 'Claim #${expense['id']}',
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 16),
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(
                           color: _getStatusColor(status).withOpacity(0.1),
                           borderRadius: BorderRadius.circular(12),
@@ -258,8 +280,10 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      _buildMetric('Total Req', expense['total_amount_request']),
-                      _buildMetric('In Progress', expense['amount_in_progress']),
+                      _buildMetric(
+                          'Total Req', expense['total_amount_request']),
+                      _buildMetric(
+                          'In Progress', expense['amount_in_progress']),
                       _buildMetric('Claimed', expense['amount_claimed']),
                     ],
                   ),
@@ -269,13 +293,16 @@ class _ExpenseScreenState extends State<ExpenseScreen> {
                     children: [
                       Text(
                         'Created: ${DateFormat('MMM dd, yyyy').format(date)}',
-                        style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                        style: TextStyle(
+                            color: Colors.grey.shade600, fontSize: 12),
                       ),
                       Row(
                         children: [
                           IconButton(
-                            icon: const Icon(Icons.delete_outline, color: Colors.red),
-                            onPressed: () => _confirmDeleteExpense(expense['id']),
+                            icon: const Icon(Icons.delete_outline,
+                                color: Colors.red),
+                            onPressed: () =>
+                                _confirmDeleteExpense(expense['id']),
                             padding: EdgeInsets.zero,
                             constraints: const BoxConstraints(),
                           ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/app_typography.dart';
 import '../utils/constants.dart';
 
 class StatCard extends StatelessWidget {
@@ -45,17 +46,14 @@ class StatCard extends StatelessWidget {
           SizedBox(height: 15),
           Text(
             value,
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
+            style: AppTypography.kpiValue.copyWith(
               color: Colors.black,
             ),
           ),
           SizedBox(height: 5),
           Text(
             label,
-            style: TextStyle(
-              fontSize: 14,
+            style: AppTypography.secondary.copyWith(
               color: AppColors.darkGray,
             ),
           ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/app_typography.dart';
 import '../models/task.dart';
 import '../utils/constants.dart';
 
@@ -39,17 +40,14 @@ class TaskCard extends StatelessWidget {
                 children: [
                   Text(
                     task.assignedToName,
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
+                    style: AppTypography.cardTitle.copyWith(
                       color: Colors.black,
                     ),
                   ),
                   SizedBox(height: 4),
                   Text(
                     task.description,
-                    style: TextStyle(
-                      fontSize: 14,
+                    style: AppTypography.secondary.copyWith(
                       color: AppColors.darkGray,
                     ),
                   ),
@@ -77,16 +75,14 @@ class TaskCard extends StatelessWidget {
               SizedBox(width: 5),
               Text(
                 task.location,
-                style: TextStyle(
-                  fontSize: 14,
+                style: AppTypography.secondary.copyWith(
                   color: Colors.black,
                 ),
               ),
               Spacer(),
               Text(
                 '${task.scheduledTime.hour.toString().padLeft(2, '0')}:${task.scheduledTime.minute.toString().padLeft(2, '0')} ${task.scheduledTime.hour >= 12 ? 'pm' : 'am'}',
-                style: TextStyle(
-                  fontSize: 14,
+                style: AppTypography.secondary.copyWith(
                   color: Colors.black,
                 ),
               ),
@@ -99,10 +95,8 @@ class TaskCard extends StatelessWidget {
                 alignment: Alignment.centerRight,
                 child: Text(
                   'Missed',
-                  style: TextStyle(
+                  style: AppTypography.secondaryMedium.copyWith(
                     color: Colors.red,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ),
@@ -123,7 +117,8 @@ class TaskCard extends StatelessWidget {
                       ),
                       child: Text(
                         'Start Now',
-                        style: TextStyle(color: Colors.white),
+                        style: AppTypography.buttonMedium
+                            .copyWith(color: Colors.white),
                       ),
                     ),
                   ),
@@ -140,11 +135,13 @@ class TaskCard extends StatelessWidget {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.check, color: AppColors.darkGray, size: 16),
+                          Icon(Icons.check,
+                              color: AppColors.darkGray, size: 16),
                           SizedBox(width: 5),
                           Text(
                             'Mark as Visited',
-                            style: TextStyle(color: AppColors.darkGray),
+                            style: AppTypography.buttonMedium
+                                .copyWith(color: AppColors.darkGray),
                           ),
                         ],
                       ),

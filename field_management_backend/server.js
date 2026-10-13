@@ -109,6 +109,7 @@ app.use('/api/', apiLimiter);
 app.use('/api/admin/dashboard', require('./routes/admin_dashboard'));
 app.use('/api/expenses', require('./routes/expenses'));
 app.use('/api/export', require('./routes/export'));
+app.use('/api/activities', require('./routes/activities'));
 
 // ==================== HELPERS ====================
 
@@ -257,10 +258,10 @@ app.post('/api/auth/signup', upload.single('profileImage'), async (req, res) => 
 // ---- LOGIN (REQ #2, #3, #12) ----
 app.post('/api/auth/login', async (req, res) => {
     try {
-        const { employeeId, password } = req.body;
+        const { email, password } = req.body;
 
-        if (!employeeId || !password) {
-            return res.status(400).json({ success: false, message: 'Employee ID and password are required' });
+        if (!email || !password) {
+            return res.status(400).json({ success: false, message: 'Email and password are required' });
         }
 
         const [users] = await db.execute(
@@ -268,19 +269,19 @@ app.post('/api/auth/login', async (req, res) => {
                     p.profile_image, p.fcm_token
              FROM users u
              LEFT JOIN profile p ON u.id = p.user_id
-             WHERE u.employee_id = ? AND u.is_active = TRUE`,
-            [employeeId.trim()]
+             WHERE LOWER(p.email) = LOWER(?) AND u.is_active = TRUE`,
+            [email.trim()]
         );
 
         if (users.length === 0) {
-            return res.status(401).json({ success: false, message: 'Invalid employee ID or password' });
+            return res.status(401).json({ success: false, message: 'Invalid email or password' });
         }
 
         const user = users[0];
         const isValid = await bcrypt.compare(password, user.password);
 
         if (!isValid) {
-            return res.status(401).json({ success: false, message: 'Invalid employee ID or password' });
+            return res.status(401).json({ success: false, message: 'Invalid email or password' });
         }
 
         // REQ #2: role goes into JWT so all routes know who is who
@@ -985,15 +986,6 @@ app.post('/api/tasks', authenticateToken, async (req, res) => {
         const isAdmin = req.user.role === 'admin';
         const isManager = req.user.role === 'manager';
         const { title, description, type, assigned_to, client_id, client_name, location, scheduled_time } = req.body;
-
-        let finalType = type;
-        if (type === 'visit') {
-            finalType = 'follow_up';
-        }
-        const validTaskTypes = ['site_evaluation', 'document_collection', 'follow_up', 'meeting'];
-        if (!validTaskTypes.includes(finalType)) {
-            return res.status(400).json({ success: false, message: `Invalid task type "${type}". Valid values are ${validTaskTypes.join(', ')}` });
-        }
 
         // Managers can only assign to their FEs
         if (isManager && assigned_to) {

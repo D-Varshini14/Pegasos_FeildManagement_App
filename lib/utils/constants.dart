@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
 class AppColors {
-  static const primaryBlue = Color(0xFF1E3A8A);
+  static const primaryBlue = Color(0xFF1E3A8A); // Deep blue from UI
   static const lightGray = Color(0xFFF5F5F5);
   static const darkGray = Color(0xFF6B7280);
   static const green = Color(0xFF10B981);
@@ -16,6 +16,9 @@ class AppStrings {
   static const tagline = 'INFORMATION TECHNOLOGY & SERVICES';
 
   static String get baseUrl {
-    return 'http://52.65.195.252:3000/api';
+    if (kIsWeb) return 'http://localhost:3000/api';
+    if (Platform.isAndroid)
+      return 'http://10.245.106.169:3000/api'; // Changed to PC's local IP for physical phone
+    return 'http://10.245.106.169:3000/api';
   }
 }

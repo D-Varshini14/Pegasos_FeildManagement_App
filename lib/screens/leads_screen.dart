@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import '../utils/app_typography.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:intl/intl.dart';
@@ -8,6 +9,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import '../services/api_service.dart';
 import '../utils/download_helper.dart';
+import 'package:provider/provider.dart';
+import '../providers/theme_provider.dart';
 
 // ── Lead Model (aligned with backend 6-stage pipeline) ──
 class Lead {
@@ -106,9 +109,8 @@ class _LeadsScreenState extends State<LeadsScreen> {
       final userString = prefs.getString('user');
       if (userString != null) {
         final userData = jsonDecode(userString);
-        _userId = userData['employeeId'] ??
-            userData['id']?.toString() ??
-            'default';
+        _userId =
+            userData['employeeId'] ?? userData['id']?.toString() ?? 'default';
       } else {
         _userId = 'default';
       }
@@ -164,20 +166,28 @@ class _LeadsScreenState extends State<LeadsScreen> {
   }
 
   // All valid pipeline statuses
-  static const List<String> _allStatuses = ['new', 'contacted', 'qualified', 'proposal', 'won', 'lost'];
+  static const List<String> _allStatuses = [
+    'new',
+    'contacted',
+    'qualified',
+    'proposal',
+    'won',
+    'lost'
+  ];
   static const List<String> _allClassifications = ['hot', 'warm', 'cold'];
 
   List<Lead> _getFilteredLeads() {
     List<Lead> filtered = _leads;
-    
+
     if (_selectedFilter != 'All') {
       final filterStatus = _selectedFilter.toLowerCase();
       filtered = filtered.where((l) => l.status == filterStatus).toList();
     }
-    
+
     if (_selectedClassificationFilter != 'All') {
       final filterClass = _selectedClassificationFilter.toLowerCase();
-      filtered = filtered.where((l) => l.classification == filterClass).toList();
+      filtered =
+          filtered.where((l) => l.classification == filterClass).toList();
     }
 
     if (_searchQuery.isNotEmpty) {
@@ -250,10 +260,14 @@ class _LeadsScreenState extends State<LeadsScreen> {
 
   Color _classificationColor(String? classification) {
     switch (classification) {
-      case 'hot': return Colors.red;
-      case 'warm': return Colors.orange;
-      case 'cold': return Colors.blue;
-      default: return Colors.grey;
+      case 'hot':
+        return Colors.red;
+      case 'warm':
+        return Colors.orange;
+      case 'cold':
+        return Colors.blue;
+      default:
+        return Colors.grey;
     }
   }
 
@@ -271,16 +285,20 @@ class _LeadsScreenState extends State<LeadsScreen> {
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Logout', style: TextStyle(color: Colors.white)),
+            child: Text('Logout',
+                style: AppTypography.buttonMedium.copyWith(
+                  color: Colors.white,
+                )),
           ),
         ],
       ),
     );
 
     if (confirmed == true) {
-      await ApiService.logout();
+      await ApiService.performLogoutWithActivity();
       if (mounted) {
-        Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
+        Navigator.of(context)
+            .pushNamedAndRemoveUntil('/login', (route) => false);
       }
     }
   }
@@ -313,11 +331,32 @@ class _LeadsScreenState extends State<LeadsScreen> {
     }
   }
 
+  Future<void> _sendWhatsApp(String phone) async {
+    String cleanPhone = phone.replaceAll(RegExp(r'\D'), '');
+    // If the number is exactly 10 digits, assume it's an Indian number without the country code
+    if (cleanPhone.length == 10) {
+      cleanPhone = '91$cleanPhone';
+    }
+    final uri = Uri.parse('https://wa.me/$cleanPhone');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Could not open WhatsApp for $phone'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
   Future<void> _updateLeadStatus(int index, String newStatus) async {
     final lead = _leads[index];
     if (lead.id == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Cannot update lead without ID'), backgroundColor: Colors.red),
+        const SnackBar(
+            content: Text('Cannot update lead without ID'),
+            backgroundColor: Colors.red),
       );
       return;
     }
@@ -328,16 +367,22 @@ class _LeadsScreenState extends State<LeadsScreen> {
       if (response['success'] == true) {
         await _loadLeads();
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lead status updated to ${newStatus.toUpperCase()}'), backgroundColor: Colors.green),
+          SnackBar(
+              content:
+                  Text('Lead status updated to ${newStatus.toUpperCase()}'),
+              backgroundColor: Colors.green),
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(response['message'] ?? 'Failed to update lead'), backgroundColor: Colors.red),
+          SnackBar(
+              content: Text(response['message'] ?? 'Failed to update lead'),
+              backgroundColor: Colors.red),
         );
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Network error: $e'), backgroundColor: Colors.red),
+        SnackBar(
+            content: Text('Network error: $e'), backgroundColor: Colors.red),
       );
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -348,7 +393,9 @@ class _LeadsScreenState extends State<LeadsScreen> {
     final lead = _leads[index];
     if (lead.id == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Cannot delete lead without ID'), backgroundColor: Colors.red),
+        const SnackBar(
+            content: Text('Cannot delete lead without ID'),
+            backgroundColor: Colors.red),
       );
       return;
     }
@@ -359,16 +406,21 @@ class _LeadsScreenState extends State<LeadsScreen> {
       if (response['success'] == true) {
         await _loadLeads();
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Lead deleted successfully'), backgroundColor: Colors.red),
+          const SnackBar(
+              content: Text('Lead deleted successfully'),
+              backgroundColor: Colors.red),
         );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(response['message'] ?? 'Failed to delete lead'), backgroundColor: Colors.red),
+          SnackBar(
+              content: Text(response['message'] ?? 'Failed to delete lead'),
+              backgroundColor: Colors.red),
         );
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Network error: $e'), backgroundColor: Colors.red),
+        SnackBar(
+            content: Text('Network error: $e'), backgroundColor: Colors.red),
       );
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -422,13 +474,16 @@ class _LeadsScreenState extends State<LeadsScreen> {
                 _dialogField(emailCtrl, 'Email', Icons.email_outlined,
                     keyboardType: TextInputType.emailAddress),
                 const SizedBox(height: 12),
-                _dialogField(
-                    companyCtrl, 'Company', Icons.business_outlined),
+                _dialogField(companyCtrl, 'Company', Icons.business_outlined),
                 const SizedBox(height: 12),
                 _dialogField(sourceCtrl, 'Source', Icons.source_outlined),
                 const SizedBox(height: 16),
                 // Status selector (6-stage pipeline)
-                const Text('Status', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF666666))),
+                const Text('Status',
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF666666))),
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 8,
@@ -473,21 +528,30 @@ class _LeadsScreenState extends State<LeadsScreen> {
                   }).toList(),
                 ),
                 const SizedBox(height: 16),
-                const Text('Classification (Status)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF666666))),
+                const Text('Classification (Status)',
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF666666))),
                 const SizedBox(height: 8),
                 DropdownButtonFormField<String>(
                   value: selectedClassification,
                   decoration: InputDecoration(
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 12),
                     isDense: true,
                   ),
                   hint: const Text('Select classification'),
-                  items: _allClassifications.map((c) => DropdownMenuItem(
-                    value: c,
-                    child: Text(c.toUpperCase()),
-                  )).toList(),
-                  onChanged: (v) => setDialogState(() => selectedClassification = v),
+                  items: _allClassifications
+                      .map((c) => DropdownMenuItem(
+                            value: c,
+                            child: Text(c.toUpperCase()),
+                          ))
+                      .toList(),
+                  onChanged: (v) =>
+                      setDialogState(() => selectedClassification = v),
                 ),
                 const SizedBox(height: 12),
                 _dialogField(notesCtrl, 'Notes', Icons.notes_outlined,
@@ -498,8 +562,10 @@ class _LeadsScreenState extends State<LeadsScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child:
-                  Text('Cancel', style: TextStyle(color: Colors.grey[600])),
+              child: Text('Cancel',
+                  style: AppTypography.secondary.copyWith(
+                    color: Colors.grey[600],
+                  )),
             ),
             ElevatedButton(
               onPressed: () async {
@@ -526,7 +592,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
 
                 Navigator.pop(ctx);
                 setState(() => _isLoading = true);
-                
+
                 try {
                   final response = await ApiService.createLead(leadData);
                   if (response['success'] == true) {
@@ -540,14 +606,17 @@ class _LeadsScreenState extends State<LeadsScreen> {
                   } else {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text(response['message'] ?? 'Failed to add lead'),
+                        content:
+                            Text(response['message'] ?? 'Failed to add lead'),
                         backgroundColor: Colors.red,
                       ),
                     );
                   }
                 } catch (e) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Network error: $e'), backgroundColor: Colors.red),
+                    SnackBar(
+                        content: Text('Network error: $e'),
+                        backgroundColor: Colors.red),
                   );
                 } finally {
                   if (mounted) setState(() => _isLoading = false);
@@ -558,8 +627,10 @@ class _LeadsScreenState extends State<LeadsScreen> {
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8)),
               ),
-              child: const Text('Add Lead',
-                  style: TextStyle(color: Colors.white)),
+              child: Text('Add Lead',
+                  style: AppTypography.buttonMedium.copyWith(
+                    color: Colors.white,
+                  )),
             ),
           ],
         ),
@@ -567,8 +638,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
     );
   }
 
-  Widget _dialogField(
-      TextEditingController ctrl, String hint, IconData icon,
+  Widget _dialogField(TextEditingController ctrl, String hint, IconData icon,
       {TextInputType? keyboardType, int maxLines = 1}) {
     return TextField(
       controller: ctrl,
@@ -597,11 +667,12 @@ class _LeadsScreenState extends State<LeadsScreen> {
   @override
   Widget build(BuildContext context) {
     final filtered = _getFilteredLeads();
+    final themeProvider = Provider.of<ThemeProvider>(context);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: primaryBlue,
+        backgroundColor: Theme.of(context).primaryColor,
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_outlined, color: Colors.white),
@@ -609,12 +680,24 @@ class _LeadsScreenState extends State<LeadsScreen> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.logout, color: Colors.white, size: 24),
-            onPressed: () => _logout(context),
+            icon: Icon(
+              themeProvider.isDarkMode
+                  ? Icons.dark_mode
+                  : Icons.light_mode,
+              color: themeProvider.isDarkMode
+                  ? const Color(0xFFFBBF24)
+                  : const Color(0xFFF59E0B),
+              size: 24,
+            ),
+            onPressed: () => themeProvider.toggleTheme(),
           ),
           IconButton(
             icon: const Icon(Icons.refresh, color: Colors.white),
             onPressed: _loadLeads,
+          ),
+          IconButton(
+            icon: const Icon(Icons.logout, color: Colors.white, size: 24),
+            onPressed: () => _logout(context),
           ),
         ],
         title: const Text('Leads',
@@ -627,34 +710,39 @@ class _LeadsScreenState extends State<LeadsScreen> {
         children: [
           // Search bar
           Container(
-            color: primaryBlue,
+            color: Theme.of(context).primaryColor,
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            child: TextField(
-              controller: _searchController,
-              onChanged: (v) => setState(() => _searchQuery = v),
-              decoration: InputDecoration(
-                hintText: 'Search leads by name, company, phone...',
-                hintStyle: TextStyle(color: Colors.grey[500], fontSize: 14),
-                prefixIcon:
-                    Icon(Icons.search, color: Colors.grey[500], size: 20),
-                suffixIcon: _searchQuery.isNotEmpty
-                    ? IconButton(
-                        icon: Icon(Icons.clear,
-                            color: Colors.grey[500], size: 20),
-                        onPressed: () => setState(() {
-                          _searchController.clear();
-                          _searchQuery = '';
-                        }),
-                      )
-                    : null,
-                filled: true,
-                fillColor: Colors.white,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(25),
-                  borderSide: BorderSide.none,
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1000),
+                child: TextField(
+                  controller: _searchController,
+                  onChanged: (v) => setState(() => _searchQuery = v),
+                  decoration: InputDecoration(
+                    hintText: 'Search leads by name, company, phone...',
+                    hintStyle: TextStyle(color: Colors.grey[500], fontSize: 14),
+                    prefixIcon:
+                        Icon(Icons.search, color: Colors.grey[500], size: 20),
+                    suffixIcon: _searchQuery.isNotEmpty
+                        ? IconButton(
+                            icon: Icon(Icons.clear,
+                                color: Colors.grey[500], size: 20),
+                            onPressed: () => setState(() {
+                              _searchController.clear();
+                              _searchQuery = '';
+                            }),
+                          )
+                        : null,
+                    filled: true,
+                    fillColor: Colors.white,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(25),
+                      borderSide: BorderSide.none,
+                    ),
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  ),
                 ),
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               ),
             ),
           ),
@@ -662,103 +750,149 @@ class _LeadsScreenState extends State<LeadsScreen> {
           // Filter chips (6-stage pipeline)
           Container(
             padding: const EdgeInsets.symmetric(vertical: 12),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                children: [
-                  ...['All', ..._allStatuses.map((s) => s[0].toUpperCase() + s.substring(1))].map((filter) {
-                  final isSelected = _selectedFilter == filter;
-                  final filterKey = filter.toLowerCase();
-                  final chipColor = filter == 'All' ? primaryBlue : _statusColor(filterKey);
-                  return GestureDetector(
-                    onTap: () => setState(() => _selectedFilter = filter),
-                    child: Container(
-                      margin: const EdgeInsets.only(right: 8),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 7),
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? chipColor.withOpacity(0.15)
-                            : Colors.transparent,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: isSelected ? chipColor : Colors.grey.shade300,
-                          width: isSelected ? 2 : 1,
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (filter != 'All') ...[
-                            Icon(_statusIcon(filterKey),
-                                size: 13, color: chipColor),
-                            const SizedBox(width: 4),
-                          ],
-                          Text(
-                            filter,
-                            style: TextStyle(
-                              color: isSelected ? chipColor : Colors.grey[600],
-                              fontSize: 12,
-                              fontWeight:
-                                  isSelected ? FontWeight.w600 : FontWeight.w500,
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1000),
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(
+                    children: [
+                      ...[
+                        'All',
+                        ..._allStatuses
+                            .map((s) => s[0].toUpperCase() + s.substring(1))
+                      ].map((filter) {
+                        final isSelected = _selectedFilter == filter;
+                        final filterKey = filter.toLowerCase();
+                        final chipColor =
+                            filter == 'All' ? primaryBlue : _statusColor(filterKey);
+                        return GestureDetector(
+                          onTap: () => setState(() => _selectedFilter = filter),
+                          child: Container(
+                            margin: const EdgeInsets.only(right: 8),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 7),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? chipColor.withOpacity(0.15)
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color:
+                                    isSelected ? chipColor : Colors.grey.shade300,
+                                width: isSelected ? 2 : 1,
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                  }),
-                  const SizedBox(width: 8),
-                  PopupMenuButton<String>(
-                    initialValue: _selectedClassificationFilter,
-                    onSelected: (String value) {
-                      setState(() {
-                        _selectedClassificationFilter = value;
-                      });
-                    },
-                    itemBuilder: (BuildContext context) {
-                      return ['All', 'Hot', 'Warm', 'Cold'].map((String choice) {
-                        return PopupMenuItem<String>(
-                          value: choice,
-                          child: Row(
-                            children: [
-                              if (choice != 'All')
-                                Icon(Icons.circle, size: 12, color: _classificationColor(choice.toLowerCase())),
-                              if (choice != 'All') const SizedBox(width: 8),
-                              Text(choice),
-                            ],
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (filter != 'All') ...[
+                                  Icon(_statusIcon(filterKey),
+                                      size: 13, color: chipColor),
+                                  const SizedBox(width: 4),
+                                ],
+                                Text(
+                                  filter,
+                                  style: TextStyle(
+                                    color:
+                                        isSelected ? chipColor : Colors.grey[600],
+                                    fontSize: 12,
+                                    fontWeight: isSelected
+                                        ? FontWeight.w600
+                                        : FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         );
-                      }).toList();
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                      decoration: BoxDecoration(
-                        color: _selectedClassificationFilter != 'All' ? _classificationColor(_selectedClassificationFilter.toLowerCase()).withOpacity(0.15) : Colors.grey.shade200,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: _selectedClassificationFilter != 'All' ? _classificationColor(_selectedClassificationFilter.toLowerCase()) : Colors.transparent, width: _selectedClassificationFilter != 'All' ? 2 : 1),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.list, size: 13, color: _selectedClassificationFilter != 'All' ? _classificationColor(_selectedClassificationFilter.toLowerCase()) : Colors.grey[700]),
-                          const SizedBox(width: 4),
-                          Text(
-                            _selectedClassificationFilter == 'All' ? 'STATUS' : _selectedClassificationFilter.toUpperCase(),
-                            style: TextStyle(
-                              color: _selectedClassificationFilter != 'All' ? _classificationColor(_selectedClassificationFilter.toLowerCase()) : Colors.grey[700],
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
+                      }),
+                      const SizedBox(width: 8),
+                      PopupMenuButton<String>(
+                        initialValue: _selectedClassificationFilter,
+                        onSelected: (String value) {
+                          setState(() {
+                            _selectedClassificationFilter = value;
+                          });
+                        },
+                        itemBuilder: (BuildContext context) {
+                          return ['All', 'Hot', 'Warm', 'Cold']
+                              .map((String choice) {
+                            return PopupMenuItem<String>(
+                              value: choice,
+                              child: Row(
+                                children: [
+                                  if (choice != 'All')
+                                    Icon(Icons.circle,
+                                        size: 12,
+                                        color: _classificationColor(
+                                            choice.toLowerCase())),
+                                  if (choice != 'All') const SizedBox(width: 8),
+                                  Text(choice),
+                                ],
+                              ),
+                            );
+                          }).toList();
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 7),
+                          decoration: BoxDecoration(
+                            color: _selectedClassificationFilter != 'All'
+                                ? _classificationColor(
+                                        _selectedClassificationFilter.toLowerCase())
+                                    .withOpacity(0.15)
+                                : Colors.grey.shade200,
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                                color: _selectedClassificationFilter != 'All'
+                                    ? _classificationColor(
+                                        _selectedClassificationFilter.toLowerCase())
+                                    : Colors.transparent,
+                                width:
+                                    _selectedClassificationFilter != 'All' ? 2 : 1),
                           ),
-                          const SizedBox(width: 4),
-                          Icon(Icons.arrow_drop_down, color: _selectedClassificationFilter != 'All' ? _classificationColor(_selectedClassificationFilter.toLowerCase()) : Colors.grey[700], size: 16),
-                        ],
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.list,
+                                  size: 13,
+                                  color: _selectedClassificationFilter != 'All'
+                                      ? _classificationColor(
+                                          _selectedClassificationFilter
+                                              .toLowerCase())
+                                      : Colors.grey[700]),
+                              const SizedBox(width: 4),
+                              Text(
+                                _selectedClassificationFilter == 'All'
+                                    ? 'STATUS'
+                                    : _selectedClassificationFilter.toUpperCase(),
+                                style: TextStyle(
+                                  color: _selectedClassificationFilter != 'All'
+                                      ? _classificationColor(
+                                          _selectedClassificationFilter
+                                              .toLowerCase())
+                                      : Colors.grey[700],
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              Icon(Icons.arrow_drop_down,
+                                  color: _selectedClassificationFilter != 'All'
+                                      ? _classificationColor(
+                                          _selectedClassificationFilter
+                                              .toLowerCase())
+                                      : Colors.grey[700],
+                                  size: 16),
+                            ],
+                          ),
+                        ),
                       ),
-                    ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
           ),
@@ -766,41 +900,51 @@ class _LeadsScreenState extends State<LeadsScreen> {
           // Count and Status Dropdown
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  '${filtered.length} Lead${filtered.length != 1 ? 's' : ''}',
-                  style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF666666)),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1000),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      '${filtered.length} Lead${filtered.length != 1 ? 's' : ''}',
+                      style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF666666)),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
           const SizedBox(height: 8),
 
           // Lead list
           Expanded(
-            child: _isLoading
-                ? const Center(
-                    child: CircularProgressIndicator(color: primaryBlue))
-                : filtered.isEmpty
-                    ? _buildEmptyState()
-                    : RefreshIndicator(
-                        onRefresh: _loadLeads,
-                        child: ListView.separated(
-                          padding: const EdgeInsets.all(16),
-                          itemCount: filtered.length,
-                          separatorBuilder: (_, __) =>
-                              const SizedBox(height: 12),
-                          itemBuilder: (_, index) {
-                            final leadIndex = _leads.indexOf(filtered[index]);
-                            return _buildLeadCard(filtered[index], leadIndex);
-                          },
-                        ),
-                      ),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1000),
+                child: _isLoading
+                    ? const Center(
+                        child: CircularProgressIndicator(color: primaryBlue))
+                    : filtered.isEmpty
+                        ? _buildEmptyState()
+                        : RefreshIndicator(
+                            onRefresh: _loadLeads,
+                            child: ListView.separated(
+                              padding: const EdgeInsets.all(16),
+                              itemCount: filtered.length,
+                              separatorBuilder: (_, __) =>
+                                  const SizedBox(height: 12),
+                              itemBuilder: (_, index) {
+                                final leadIndex = _leads.indexOf(filtered[index]);
+                                return _buildLeadCard(filtered[index], leadIndex);
+                              },
+                            ),
+                          ),
+              ),
+            ),
           ),
         ],
       ),
@@ -829,7 +973,9 @@ class _LeadsScreenState extends State<LeadsScreen> {
             _searchQuery.isNotEmpty
                 ? 'Try a different search'
                 : 'Tap + to add your first lead',
-            style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+            style: AppTypography.secondary.copyWith(
+              color: Colors.grey[600],
+            ),
           ),
         ],
       ),
@@ -876,14 +1022,14 @@ class _LeadsScreenState extends State<LeadsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(lead.name,
-                        style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF1A1A1A))),
+                        style: AppTypography.cardTitle.copyWith(
+                          fontSize: 16,
+                          color: const Color(0xFF1A1A1A),
+                        )),
                     if (lead.company.isNotEmpty)
                       Text(lead.company,
-                          style: TextStyle(
-                              fontSize: 13, color: Colors.grey[600])),
+                          style:
+                              TextStyle(fontSize: 13, color: Colors.grey[600])),
                   ],
                 ),
               ),
@@ -892,15 +1038,15 @@ class _LeadsScreenState extends State<LeadsScreen> {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   PopupMenuButton<String>(
-                    onSelected: (newStatus) => _updateLeadStatus(index, newStatus),
+                    onSelected: (newStatus) =>
+                        _updateLeadStatus(index, newStatus),
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12)),
-                    itemBuilder: (_) => _allStatuses
-                        .map((s) => _statusMenuItem(s))
-                        .toList(),
+                    itemBuilder: (_) =>
+                        _allStatuses.map((s) => _statusMenuItem(s)).toList(),
                     child: Container(
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 5),
                       decoration: BoxDecoration(
                         color: statusColor.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(12),
@@ -930,9 +1076,12 @@ class _LeadsScreenState extends State<LeadsScreen> {
                     onSelected: (newClass) async {
                       if (lead.id == null) return;
                       setState(() => _isLoading = true);
-                      final res = await ApiService.updateLeadClassification(lead.id!, newClass);
+                      final res = await ApiService.updateLeadClassification(
+                          lead.id!, newClass);
                       if (res['success'] == true) {
-                        setState(() { lead.classification = newClass; });
+                        setState(() {
+                          lead.classification = newClass;
+                        });
                       }
                       setState(() => _isLoading = false);
                     },
@@ -943,34 +1092,49 @@ class _LeadsScreenState extends State<LeadsScreen> {
                               value: c,
                               child: Row(
                                 children: [
-                                  Icon(Icons.circle, size: 10, color: _classificationColor(c)),
+                                  Icon(Icons.circle,
+                                      size: 10, color: _classificationColor(c)),
                                   const SizedBox(width: 8),
-                                  Text(c.toUpperCase(), style: const TextStyle(fontSize: 12)),
+                                  Text(c.toUpperCase(),
+                                      style: AppTypography.buttonSmall),
                                 ],
                               ),
                             ))
                         .toList(),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 5),
                       decoration: BoxDecoration(
-                        color: lead.classification != null ? _classificationColor(lead.classification).withOpacity(0.1) : Colors.orange.withOpacity(0.1),
+                        color: lead.classification != null
+                            ? _classificationColor(lead.classification)
+                                .withOpacity(0.1)
+                            : Colors.orange.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.list, size: 12, color: lead.classification != null ? _classificationColor(lead.classification) : Colors.orange),
+                          Icon(Icons.list,
+                              size: 12,
+                              color: lead.classification != null
+                                  ? _classificationColor(lead.classification)
+                                  : Colors.orange),
                           const SizedBox(width: 4),
                           Text(
                             (lead.classification ?? 'Status').toUpperCase(),
                             style: TextStyle(
                                 fontSize: 10,
                                 fontWeight: FontWeight.w700,
-                                color: lead.classification != null ? _classificationColor(lead.classification) : Colors.orange),
+                                color: lead.classification != null
+                                    ? _classificationColor(lead.classification)
+                                    : Colors.orange),
                           ),
                           const SizedBox(width: 2),
                           Icon(Icons.arrow_drop_down,
-                              size: 14, color: lead.classification != null ? _classificationColor(lead.classification) : Colors.orange),
+                              size: 14,
+                              color: lead.classification != null
+                                  ? _classificationColor(lead.classification)
+                                  : Colors.orange),
                         ],
                       ),
                     ),
@@ -990,8 +1154,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
                   style: TextStyle(fontSize: 13, color: Colors.grey[600])),
               if (lead.source.isNotEmpty) ...[
                 const SizedBox(width: 16),
-                Icon(Icons.source_outlined,
-                    size: 14, color: Colors.grey[500]),
+                Icon(Icons.source_outlined, size: 14, color: Colors.grey[500]),
                 const SizedBox(width: 4),
                 Text(lead.source,
                     style: TextStyle(fontSize: 13, color: Colors.grey[600])),
@@ -1003,7 +1166,9 @@ class _LeadsScreenState extends State<LeadsScreen> {
             Text(lead.notes,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 12, color: Colors.grey[500])),
+                style: AppTypography.caption.copyWith(
+                  color: Colors.grey[500],
+                )),
           ],
           const SizedBox(height: 4),
           Text(
@@ -1015,21 +1180,27 @@ class _LeadsScreenState extends State<LeadsScreen> {
 
           // Action buttons
           Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              _actionButton(Icons.phone, 'Call', primaryBlue,
-                  () => _makeCall(lead.phone)),
-              const SizedBox(width: 8),
-              if (lead.email.isNotEmpty) ...[
-                _actionButton(Icons.email_outlined, 'Email', Colors.teal,
-                    () => _sendEmail(lead.email)),
-                const SizedBox(width: 8),
-              ],
-              if (['proposal', 'won', 'lost'].contains(lead.status)) ...[
-                _actionButton(Icons.file_copy_outlined, 'Proposals', Colors.orange,
-                    () => _showProposalsDialog(lead)),
-                const SizedBox(width: 8),
-              ],
-              const Spacer(),
+              Expanded(
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _actionButton(Icons.phone, 'Call', primaryBlue,
+                        () => _makeCall(lead.phone)),
+                    if (lead.email.isNotEmpty)
+                      _actionButton(Icons.email_outlined, 'Email', Colors.teal,
+                          () => _sendEmail(lead.email)),
+                    if (lead.phone.isNotEmpty)
+                      _actionButton(Icons.chat_outlined, 'WhatsApp', Colors.green,
+                          () => _sendWhatsApp(lead.phone)),
+                    if (['proposal', 'won', 'lost'].contains(lead.status))
+                      _actionButton(Icons.file_copy_outlined, 'Proposals',
+                          Colors.orange, () => _showProposalsDialog(lead)),
+                  ],
+                ),
+              ),
               IconButton(
                 icon: Icon(Icons.delete_outline,
                     color: Colors.red[400], size: 20),
@@ -1089,12 +1260,14 @@ class _LeadsScreenState extends State<LeadsScreen> {
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('Delete Lead'),
-        content: Text(
-            'Are you sure you want to delete ${_leads[index].name}?'),
+        content: Text('Are you sure you want to delete ${_leads[index].name}?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text('Cancel', style: TextStyle(color: Colors.grey[600])),
+            child: Text('Cancel',
+                style: AppTypography.secondary.copyWith(
+                  color: Colors.grey[600],
+                )),
           ),
           ElevatedButton(
             onPressed: () {
@@ -1106,8 +1279,10 @@ class _LeadsScreenState extends State<LeadsScreen> {
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8)),
             ),
-            child:
-                const Text('Delete', style: TextStyle(color: Colors.white)),
+            child: Text('Delete',
+                style: AppTypography.buttonMedium.copyWith(
+                  color: Colors.white,
+                )),
           ),
         ],
       ),
@@ -1122,7 +1297,8 @@ class _LeadsScreenState extends State<LeadsScreen> {
         title: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text('Proposals', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+            const Text('Proposals',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
             IconButton(
               icon: const Icon(Icons.upload_file, color: primaryBlue),
               onPressed: () => _uploadProposal(lead.id!),
@@ -1138,10 +1314,12 @@ class _LeadsScreenState extends State<LeadsScreen> {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
               }
-              if (snapshot.hasError || !snapshot.hasData || snapshot.data!['success'] != true) {
+              if (snapshot.hasError ||
+                  !snapshot.hasData ||
+                  snapshot.data!['success'] != true) {
                 return const Center(child: Text('Failed to load proposals'));
               }
-              
+
               final List proposals = snapshot.data!['data'] ?? [];
               if (proposals.isEmpty) {
                 return const Center(child: Text('No proposals uploaded yet.'));
@@ -1153,38 +1331,70 @@ class _LeadsScreenState extends State<LeadsScreen> {
                 separatorBuilder: (_, __) => const Divider(),
                 itemBuilder: (context, index) {
                   final p = proposals[index];
-                  return ListTile(
-                    leading: const Icon(Icons.description, color: Colors.orange),
-                    title: Text(p['original_filename'] ?? 'Document', maxLines: 1, overflow: TextOverflow.ellipsis),
-                    subtitle: Text('Status: ${p['status']}\nDate: ${DateFormat('dd MMM yyyy').format(DateTime.parse(p['created_at']))}'),
-                    isThreeLine: true,
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        DropdownButton<String>(
-                          value: ['pending', 'won', 'lost'].contains(p['status']) ? p['status'] : 'pending',
-                          underline: const SizedBox(),
-                          style: const TextStyle(fontSize: 12, color: primaryBlue, fontWeight: FontWeight.bold),
-                          items: ['pending', 'won', 'lost'].map((status) {
-                            return DropdownMenuItem(
-                              value: status,
-                              child: Text(status.toUpperCase()),
-                            );
-                          }).toList(),
-                          onChanged: (val) async {
-                            if (val == null || val == p['status']) return;
-                            setState(() => _isLoading = true);
-                            await ApiService.updateProposalStatus(p['id'], val);
-                            setState(() => _isLoading = false);
-                            Navigator.pop(ctx);
-                            _showProposalsDialog(lead); // Refresh dialog
-                          },
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.download, color: primaryBlue),
-                          onPressed: () => _downloadProposal(p['id'], p['original_filename'] ?? 'proposal.pdf'),
-                        ),
-                      ],
+                  return Card(
+                    margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(Icons.description, color: Colors.orange),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  p['original_filename'] ?? 'Document',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Status: ${p['status']}\nDate: ${DateFormat('dd MMM yyyy').format(DateTime.parse(p['created_at']))}',
+                            style: TextStyle(color: Colors.grey[700], fontSize: 13),
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              DropdownButton<String>(
+                                value: ['pending', 'won', 'lost'].contains(p['status'])
+                                    ? p['status']
+                                    : 'pending',
+                                underline: const SizedBox(),
+                                style: const TextStyle(
+                                    fontSize: 12,
+                                    color: primaryBlue,
+                                    fontWeight: FontWeight.bold),
+                                items: ['pending', 'won', 'lost'].map((status) {
+                                  return DropdownMenuItem(
+                                    value: status,
+                                    child: Text(status.toUpperCase()),
+                                  );
+                                }).toList(),
+                                onChanged: (val) async {
+                                  if (val == null || val == p['status']) return;
+                                  setState(() => _isLoading = true);
+                                  await ApiService.updateProposalStatus(p['id'], val);
+                                  setState(() => _isLoading = false);
+                                  Navigator.pop(ctx);
+                                  _showProposalsDialog(lead); // Refresh dialog
+                                },
+                              ),
+                              const SizedBox(width: 8),
+                              IconButton(
+                                icon: const Icon(Icons.download, color: primaryBlue),
+                                onPressed: () => _downloadProposal(p['id'],
+                                    p['original_filename'] ?? 'proposal.pdf'),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
                   );
                 },
@@ -1214,36 +1424,47 @@ class _LeadsScreenState extends State<LeadsScreen> {
         setState(() => _isLoading = true);
         final response = await ApiService.uploadLeadProposal(
             leadId, result.files.single.bytes!, result.files.single.name);
-        
+
         setState(() => _isLoading = false);
-        
+
         if (response['success'] == true) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Proposal uploaded successfully'), backgroundColor: Colors.green));
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text('Proposal uploaded successfully'),
+              backgroundColor: Colors.green));
           Navigator.pop(context); // Close and reopen to refresh
           _showProposalsDialog(_leads.firstWhere((l) => l.id == leadId));
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(response['message'] ?? 'Upload failed'), backgroundColor: Colors.red));
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text(response['message'] ?? 'Upload failed'),
+              backgroundColor: Colors.red));
         }
       }
     } catch (e) {
       setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
     }
   }
 
   Future<void> _downloadProposal(int proposalId, String filename) async {
     try {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Downloading...')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Downloading...')));
       final response = await ApiService.downloadProposal(proposalId);
-      
+
       if (response.statusCode == 200) {
         await saveDownloadedFile(response.bodyBytes, filename);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Saved $filename successfully!'), backgroundColor: Colors.green));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Saved $filename successfully!'),
+            backgroundColor: Colors.green));
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to download file'), backgroundColor: Colors.red));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Failed to download file'),
+            backgroundColor: Colors.red));
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
     }
   }
 }

@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import '../utils/app_typography.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -38,10 +39,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   void initState() {
     super.initState();
     // Initialize controllers with existing data
-    _nameController = TextEditingController(text: widget.userData['name'] ?? '');
-    _emailController = TextEditingController(text: widget.userData['email'] ?? '');
-    _phoneController = TextEditingController(text: widget.userData['phone'] ?? '');
-    _zoneController = TextEditingController(text: widget.userData['zone'] ?? '');
+    _nameController =
+        TextEditingController(text: widget.userData['name'] ?? '');
+    _emailController =
+        TextEditingController(text: widget.userData['email'] ?? '');
+    _phoneController =
+        TextEditingController(text: widget.userData['phone'] ?? '');
+    _zoneController =
+        TextEditingController(text: widget.userData['zone'] ?? '');
     _selectedRole = widget.userData['role'] ?? 'field_executive';
   }
 
@@ -137,7 +142,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         ),
         title: Text(
           'Edit Profile',
-          style: GoogleFonts.poppins(
+          style: GoogleFonts.inter(
             color: Colors.white,
             fontSize: 20,
             fontWeight: FontWeight.w600,
@@ -180,29 +185,29 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           ),
                           child: _profileImage != null
                               ? ClipOval(
-                            child: Image.file(
-                              _profileImage!,
-                              fit: BoxFit.cover,
-                            ),
-                          )
+                                  child: Image.file(
+                                    _profileImage!,
+                                    fit: BoxFit.cover,
+                                  ),
+                                )
                               : Center(
-                            child: Text(
-                              _nameController.text.isNotEmpty
-                                  ? _nameController.text[0].toUpperCase()
-                                  : 'U',
-                              style: GoogleFonts.poppins(
-                                fontSize: 48,
-                                fontWeight: FontWeight.bold,
-                                color: primaryBlue,
-                              ),
-                            ),
-                          ),
+                                  child: Text(
+                                    _nameController.text.isNotEmpty
+                                        ? _nameController.text[0].toUpperCase()
+                                        : 'U',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 48,
+                                      fontWeight: FontWeight.bold,
+                                      color: primaryBlue,
+                                    ),
+                                  ),
+                                ),
                         ),
                       ),
                       const SizedBox(height: 8),
                       Text(
                         'Tap to change profile photo',
-                        style: GoogleFonts.poppins(
+                        style: GoogleFonts.inter(
                           fontSize: 12,
                           color: Colors.grey.shade600,
                         ),
@@ -220,7 +225,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           ),
                           child: Text(
                             _errorMessage,
-                            style: GoogleFonts.poppins(
+                            style: GoogleFonts.inter(
                               color: Colors.red.shade700,
                               fontSize: 14,
                             ),
@@ -298,7 +303,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           value: _selectedRole,
                           decoration: InputDecoration(
                             labelText: 'Role',
-                            labelStyle: GoogleFonts.poppins(
+                            labelStyle: GoogleFonts.inter(
                               color: Colors.grey.shade600,
                               fontWeight: FontWeight.w500,
                             ),
@@ -313,7 +318,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                               value: role,
                               child: Text(
                                 role.replaceAll('_', ' ').toUpperCase(),
-                                style: GoogleFonts.poppins(),
+                                style: GoogleFonts.inter(),
                               ),
                             );
                           }).toList(),
@@ -339,14 +344,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                               children: [
                                 Text(
                                   'Employee ID',
-                                  style: GoogleFonts.poppins(
+                                  style: GoogleFonts.inter(
                                     fontSize: 12,
                                     color: Colors.grey.shade600,
                                   ),
                                 ),
                                 Text(
                                   widget.userData['employeeId'] ?? 'N/A',
-                                  style: GoogleFonts.poppins(
+                                  style: GoogleFonts.inter(
                                     fontSize: 16,
                                     fontWeight: FontWeight.w600,
                                     color: Colors.black,
@@ -356,14 +361,15 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                             ),
                             const Spacer(),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 6),
                               decoration: BoxDecoration(
                                 color: Colors.grey.shade400,
                                 borderRadius: BorderRadius.circular(6),
                               ),
                               child: Text(
                                 'READ ONLY',
-                                style: GoogleFonts.poppins(
+                                style: GoogleFonts.inter(
                                   fontSize: 10,
                                   fontWeight: FontWeight.w600,
                                   color: Colors.white,
@@ -391,16 +397,16 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           ),
                           child: _isLoading
                               ? const CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2,
-                          )
+                                  color: Colors.white,
+                                  strokeWidth: 2,
+                                )
                               : Text(
-                            'Save Changes',
-                            style: GoogleFonts.poppins(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
+                                  'Save Changes',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
                         ),
                       ),
                       const SizedBox(height: 20),
@@ -436,18 +442,19 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         keyboardType: keyboardType,
         validator: validator,
         readOnly: readOnly,
-        style: GoogleFonts.poppins(
+        style: GoogleFonts.inter(
           fontSize: 16,
           fontWeight: FontWeight.w500,
           color: readOnly ? Colors.grey.shade700 : Colors.black,
         ),
         decoration: InputDecoration(
           labelText: label,
-          labelStyle: GoogleFonts.poppins(
+          labelStyle: GoogleFonts.inter(
             color: readOnly ? Colors.grey.shade600 : primaryBlue,
             fontWeight: FontWeight.w500,
           ),
-          prefixIcon: Icon(icon, color: readOnly ? Colors.grey.shade500 : primaryBlue),
+          prefixIcon:
+              Icon(icon, color: readOnly ? Colors.grey.shade500 : primaryBlue),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 16,

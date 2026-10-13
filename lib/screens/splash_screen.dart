@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import '../utils/app_typography.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'admin_home_screen.dart';
 import 'manager_home_screen.dart';
@@ -19,44 +19,35 @@ class _SplashScreenState extends State<SplashScreen> {
     super.initState();
     _navigateToNextScreen();
   }
-  //
-  // Future<void> _navigateToNextScreen() async {
-  //   await Future.delayed(const Duration(seconds: 2));
-  //   final prefs = await SharedPreferences.getInstance();
-  //   final token = prefs.getString('token');
-  //
-  //   if (token != null) {
-  //     Navigator.pushReplacementNamed(context, '/home');
-  //   } else {
-  //     Navigator.pushReplacementNamed(context, '/login');
-  //   }
-  // }
 
   Future<void> _navigateToNextScreen() async {
     await Future.delayed(const Duration(seconds: 2));
-    
+
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('token');
       final userStr = prefs.getString('user');
-      
+
       if (token != null && userStr != null) {
         final userData = jsonDecode(userStr);
         final role = userData['role'] ?? 'field_executive';
-        
+
         if (mounted) {
           if (role == 'admin') {
-            Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const AdminHomeScreen()));
+            Navigator.pushReplacement(context,
+                MaterialPageRoute(builder: (_) => const AdminHomeScreen()));
           } else if (role == 'manager') {
-            Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const ManagerHomeScreen()));
+            Navigator.pushReplacement(context,
+                MaterialPageRoute(builder: (_) => const ManagerHomeScreen()));
           } else {
-            Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => HomeScreen()));
+            Navigator.pushReplacement(
+                context, MaterialPageRoute(builder: (_) => HomeScreen()));
           }
           return;
         }
       }
     } catch (_) {}
-    
+
     // Always navigate to login page if no token
     if (mounted) {
       Navigator.pushReplacementNamed(context, '/login');
@@ -90,11 +81,8 @@ class _SplashScreenState extends State<SplashScreen> {
                 // App Name
                 Text(
                   'Pegasos',
-                  style: GoogleFonts.poppins(
-                    fontSize: 38,
-                    fontWeight: FontWeight.w700,
+                  style: AppTypography.appName.copyWith(
                     color: Colors.white,
-                    letterSpacing: 0.5,
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -103,11 +91,8 @@ class _SplashScreenState extends State<SplashScreen> {
                 Text(
                   'INFORMATION TECHNOLOGY & SERVICES',
                   textAlign: TextAlign.center,
-                  style: GoogleFonts.poppins(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
+                  style: AppTypography.tagline.copyWith(
                     color: Colors.white.withOpacity(0.95),
-                    letterSpacing: 2.4,
                   ),
                 ),
               ],

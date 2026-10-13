@@ -46,7 +46,7 @@ class NotificationService {
       // Still initialize polling for web
       return;
     }
-    
+
     if (_isInitialized) return;
 
     tz.initializeTimeZones();
@@ -72,9 +72,8 @@ class NotificationService {
 
     // Request Android 13+ notification permission
     if (Platform.isAndroid) {
-      final androidPlugin =
-          _plugin.resolvePlatformSpecificImplementation<
-              AndroidFlutterLocalNotificationsPlugin>();
+      final androidPlugin = _plugin.resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>();
       await androidPlugin?.requestNotificationsPermission();
       await androidPlugin?.requestExactAlarmsPermission();
     }
@@ -93,7 +92,8 @@ class NotificationService {
     _pollTimer = Timer.periodic(interval, (_) => _pollUnreadCount());
     // Also poll immediately
     _pollUnreadCount();
-    debugPrint('[NotificationService] Polling started (every ${interval.inSeconds}s)');
+    debugPrint(
+        '[NotificationService] Polling started (every ${interval.inSeconds}s)');
   }
 
   // ── Stop polling ──
@@ -108,14 +108,15 @@ class NotificationService {
       final response = await ApiService.getUnreadNotificationCount();
       if (response['success'] == true) {
         final int newCount = response['unreadCount'] ?? 0;
-        
+
         // Detect new notifications
         if (newCount > _lastUnreadCount && _lastUnreadCount >= 0) {
           final int diff = newCount - _lastUnreadCount;
           _newNotificationController.add(
             'You have $diff new notification${diff > 1 ? 's' : ''}',
           );
-          debugPrint('[NotificationService] $diff new notification(s) detected');
+          debugPrint(
+              '[NotificationService] $diff new notification(s) detected');
         }
 
         _lastUnreadCount = newCount;
@@ -195,7 +196,8 @@ class NotificationService {
         iOS: const DarwinNotificationDetails(),
       ),
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-      uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.absoluteTime,
       payload: payload,
     );
 
@@ -210,8 +212,7 @@ class NotificationService {
     required DateTime visitTime,
     int minutesBefore = 30,
   }) async {
-    final reminderTime =
-        visitTime.subtract(Duration(minutes: minutesBefore));
+    final reminderTime = visitTime.subtract(Duration(minutes: minutesBefore));
 
     await scheduleAt(
       id: (visitId.hashCode % 2147483647).abs(),

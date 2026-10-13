@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import '../utils/app_typography.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -10,8 +11,9 @@ import '../services/api_service.dart';
 /// Navigated to when a dashboard stat card (Total/Completed/Pending/Missed)
 /// is tapped on the HomeScreen.
 class FilteredTasksScreen extends StatefulWidget {
-  final String? filterStatus; // null means 'all', otherwise 'completed', 'pending', 'missed'
-  final String filterLabel;  // Display title
+  final String?
+      filterStatus; // null means 'all', otherwise 'completed', 'pending', 'missed'
+  final String filterLabel; // Display title
   final bool isAdminOrManager;
 
   const FilteredTasksScreen({
@@ -49,9 +51,8 @@ class _FilteredTasksScreenState extends State<FilteredTasksScreen> {
       final userString = prefs.getString('user');
       if (userString != null) {
         final userData = jsonDecode(userString);
-        _userId = userData['employeeId'] ??
-            userData['id']?.toString() ??
-            'default';
+        _userId =
+            userData['employeeId'] ?? userData['id']?.toString() ?? 'default';
       } else {
         _userId = 'default';
       }
@@ -66,7 +67,8 @@ class _FilteredTasksScreenState extends State<FilteredTasksScreen> {
       final response = await ApiService.getTasks(all: widget.isAdminOrManager);
       if (response['success'] == true && response['data'] != null) {
         final List data = response['data'];
-        List<Visit> all = data.map((e) => Visit.fromJson(e as Map<String, dynamic>)).toList();
+        List<Visit> all =
+            data.map((e) => Visit.fromJson(e as Map<String, dynamic>)).toList();
 
         // Filter based on status
         if (widget.filterStatus != null && widget.filterStatus != 'all') {
@@ -92,7 +94,7 @@ class _FilteredTasksScreenState extends State<FilteredTasksScreen> {
       final response = visit.isTask
           ? await ApiService.updateTaskStatus(visit.id!, newStatus)
           : await ApiService.updateVisitStatus(visit.id!, newStatus);
-          
+
       if (response['success'] == true) {
         await _loadVisits();
       }
@@ -188,9 +190,7 @@ class _FilteredTasksScreenState extends State<FilteredTasksScreen> {
         title: Text(
           '${widget.filterLabel} Tasks',
           style: const TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.w600,
-              color: Colors.white),
+              fontSize: 20, fontWeight: FontWeight.w600, color: Colors.white),
         ),
         actions: [
           Center(
@@ -222,7 +222,8 @@ class _FilteredTasksScreenState extends State<FilteredTasksScreen> {
                     padding: const EdgeInsets.all(16),
                     itemCount: _visits.length,
                     separatorBuilder: (_, __) => const SizedBox(height: 12),
-                    itemBuilder: (_, index) => _buildCard(_visits[index], index),
+                    itemBuilder: (_, index) =>
+                        _buildCard(_visits[index], index),
                   ),
                 ),
     );
@@ -246,7 +247,9 @@ class _FilteredTasksScreenState extends State<FilteredTasksScreen> {
           const SizedBox(height: 8),
           Text(
             'You have no tasks with this status',
-            style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+            style: AppTypography.secondary.copyWith(
+              color: Colors.grey[600],
+            ),
           ),
         ],
       ),
@@ -278,14 +281,13 @@ class _FilteredTasksScreenState extends State<FilteredTasksScreen> {
             children: [
               Expanded(
                 child: Text(visit.clientName,
-                    style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF1A1A1A))),
+                    style: AppTypography.cardTitle.copyWith(
+                      fontSize: 16,
+                      color: const Color(0xFF1A1A1A),
+                    )),
               ),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: statusColor.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(12),
@@ -308,8 +310,7 @@ class _FilteredTasksScreenState extends State<FilteredTasksScreen> {
           ),
           const SizedBox(height: 4),
           Text(visit.purpose,
-              style:
-                  const TextStyle(fontSize: 13, color: Color(0xFF666666))),
+              style: const TextStyle(fontSize: 13, color: Color(0xFF666666))),
           const SizedBox(height: 8),
           // Location + time
           Row(
@@ -319,8 +320,9 @@ class _FilteredTasksScreenState extends State<FilteredTasksScreen> {
               const SizedBox(width: 4),
               Expanded(
                 child: Text(visit.location,
-                    style:
-                        TextStyle(fontSize: 12, color: Colors.grey[600])),
+                    style: AppTypography.caption.copyWith(
+                      color: Colors.grey[600],
+                    )),
               ),
               Text(
                 DateFormat('dd MMM, HH:mm').format(visit.visitTime),
@@ -350,8 +352,9 @@ class _FilteredTasksScreenState extends State<FilteredTasksScreen> {
                     child: Text(visit.notes,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                            fontSize: 12, color: Colors.grey[700])),
+                        style: AppTypography.caption.copyWith(
+                          color: Colors.grey[700],
+                        )),
                   ),
                 ],
               ),
@@ -369,8 +372,7 @@ class _FilteredTasksScreenState extends State<FilteredTasksScreen> {
               _actionBtn(Icons.email_outlined, 'Mail It', Colors.teal, () {
                 final subject =
                     Uri.encodeComponent('Visit Update: ${visit.clientName}');
-                final body = Uri.encodeComponent(
-                    'Client: ${visit.clientName}\n'
+                final body = Uri.encodeComponent('Client: ${visit.clientName}\n'
                     'Title: ${visit.purpose}\n'
                     'Location: ${visit.location}\n'
                     'Date: ${DateFormat('dd MMMM yyyy, HH:mm').format(visit.visitTime)}\n'
@@ -396,8 +398,7 @@ class _FilteredTasksScreenState extends State<FilteredTasksScreen> {
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16)),
                     title: const Text('Delete Visit'),
-                    content: Text(
-                        'Delete visit with ${visit.clientName}?'),
+                    content: Text('Delete visit with ${visit.clientName}?'),
                     actions: [
                       TextButton(
                           onPressed: () => Navigator.pop(ctx),
@@ -409,8 +410,10 @@ class _FilteredTasksScreenState extends State<FilteredTasksScreen> {
                         },
                         style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.red),
-                        child: const Text('Delete',
-                            style: TextStyle(color: Colors.white)),
+                        child: Text('Delete',
+                            style: AppTypography.buttonMedium.copyWith(
+                              color: Colors.white,
+                            )),
                       ),
                     ],
                   ),

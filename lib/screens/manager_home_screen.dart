@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import '../utils/app_typography.dart';
 import '../utils/download_helper.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
@@ -80,7 +81,8 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
           SnackBar(
             content: Row(
               children: [
-                const Icon(Icons.notifications_active, color: Colors.white, size: 20),
+                const Icon(Icons.notifications_active,
+                    color: Colors.white, size: 20),
                 const SizedBox(width: 8),
                 Expanded(child: Text(message)),
               ],
@@ -88,14 +90,16 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
             backgroundColor: primaryBlue,
             behavior: SnackBarBehavior.floating,
             duration: const Duration(seconds: 4),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             action: SnackBarAction(
               label: 'View',
               textColor: Colors.white,
               onPressed: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+                  MaterialPageRoute(
+                      builder: (_) => const NotificationsScreen()),
                 ).then((_) {
                   NotificationService().pollNow();
                   _loadData();
@@ -110,7 +114,7 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
 
   Future<void> _loadData() async {
     if (mounted) setState(() => _isLoading = true);
-    
+
     // Parallelize calls for high reliability and speed
     await Future.wait([
       _loadManagerInfo(),
@@ -130,7 +134,9 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
     final userString = prefs.getString('user');
     if (userString != null) {
       final userData = jsonDecode(userString);
-      if (mounted) setState(() => _managerName = userData['name']?.split(' ')[0] ?? 'Admin');
+      if (mounted)
+        setState(
+            () => _managerName = userData['name']?.split(' ')[0] ?? 'Admin');
     }
   }
 
@@ -231,10 +237,13 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
         title: const Text('Confirm Logout'),
         content: const Text('Are you sure you want to log out?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel')),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red, foregroundColor: Colors.white),
             child: const Text('Logout'),
           ),
         ],
@@ -242,7 +251,7 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
     );
 
     if (confirmed == true) {
-      await ApiService.logout();
+      await ApiService.performLogoutWithActivity();
       if (mounted) {
         Navigator.pushReplacement(
           context,
@@ -269,20 +278,22 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Manager Panel',
-                style: TextStyle(color: Colors.white70, fontSize: 12)),
+            Text('Manager Panel',
+                style: AppTypography.caption.copyWith(
+                  color: Colors.white70,
+                )),
             Text('Welcome, $_managerName!',
-                style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700)),
+                style: AppTypography.emptyStateTitle.copyWith(
+                  color: Colors.white,
+                )),
           ],
         ),
         actions: [
           Stack(
             children: [
               IconButton(
-                icon: const Icon(Icons.notifications_outlined, color: Colors.white),
+                icon: const Icon(Icons.notifications_outlined,
+                    color: Colors.white),
                 onPressed: () async {
                   await Navigator.push(
                     context,
@@ -294,13 +305,16 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
               ),
               if (_unreadCount > 0)
                 Positioned(
-                  right: 6, top: 6,
+                  right: 6,
+                  top: 6,
                   child: Container(
                     padding: const EdgeInsets.all(4),
                     decoration: const BoxDecoration(
                         color: Colors.red, shape: BoxShape.circle),
                     child: Text('$_unreadCount',
-                        style: const TextStyle(color: Colors.white, fontSize: 9)),
+                        style: AppTypography.badge.copyWith(
+                          color: Colors.white,
+                        )),
                   ),
                 ),
             ],
@@ -311,44 +325,70 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
           ),
         ],
       ),
-      body: IndexedStack(
-        index: _currentIndex,
-        children: [
-          _buildDashboardTab(),
-          _buildExecutivesTab(),
-          _buildTasksTab(),
-          _buildProfileTab(),
-        ],
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1000),
+          child: IndexedStack(
+            index: _currentIndex,
+            children: [
+              _buildDashboardTab(),
+              _buildExecutivesTab(),
+              _buildTasksTab(),
+              _buildProfileTab(),
+            ],
+          ),
+        ),
       ),
       // Bottom Nav
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (index) => setState(() => _currentIndex = index),
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: primaryBlue,
-        unselectedItemColor: Colors.grey.shade400,
-        items: const [
-          BottomNavigationBarItem(
-              icon: Icon(Icons.dashboard_outlined),
-              activeIcon: Icon(Icons.dashboard),
-              label: 'Dashboard'),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.people_outline),
-              activeIcon: Icon(Icons.people),
-              label: 'Executives'),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.assignment_outlined),
-              activeIcon: Icon(Icons.assignment),
-              label: 'Tasks'),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.person_outline),
-              activeIcon: Icon(Icons.person),
-              label: 'Profile'),
-        ],
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, -5),
+            ),
+          ],
+        ),
+        child: SafeArea(
+          child: Center(
+            heightFactor: 1.0,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1000),
+              child: BottomNavigationBar(
+                currentIndex: _currentIndex,
+                onTap: (index) => setState(() => _currentIndex = index),
+                type: BottomNavigationBarType.fixed,
+                selectedItemColor: primaryBlue,
+                unselectedItemColor: Colors.grey.shade400,
+                backgroundColor: Colors.transparent,
+                elevation: 0,
+                items: const [
+                  BottomNavigationBarItem(
+                      icon: Icon(Icons.dashboard_outlined),
+                      activeIcon: Icon(Icons.dashboard),
+                      label: 'Dashboard'),
+                  BottomNavigationBarItem(
+                      icon: Icon(Icons.people_outline),
+                      activeIcon: Icon(Icons.people),
+                      label: 'Executives'),
+                  BottomNavigationBarItem(
+                      icon: Icon(Icons.assignment_outlined),
+                      activeIcon: Icon(Icons.assignment),
+                      label: 'Tasks'),
+                  BottomNavigationBarItem(
+                      icon: Icon(Icons.person_outline),
+                      activeIcon: Icon(Icons.person),
+                      label: 'Profile'),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
-
 
   // ── Tab: Dashboard ──
   Widget _buildDashboardTab() {
@@ -361,18 +401,29 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 8),
-            const Text('Overview',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+            Text('Overview',
+                style: AppTypography.cardTitle.copyWith(
+                  fontWeight: FontWeight.w700,
+                )),
             const SizedBox(height: 12),
             Row(
               children: [
-                _buildMetricCard('Total', _total, Icons.assessment_outlined, primaryBlue, null, 'Total Tasks'),
+                _buildMetricCard('Total', _total, Icons.assessment_outlined,
+                    primaryBlue, null, 'Total Tasks'),
                 const SizedBox(width: 10),
-                _buildMetricCard('Completed', _completed, Icons.check_circle_outline, Colors.green, 'completed', 'Completed Tasks'),
+                _buildMetricCard(
+                    'Completed',
+                    _completed,
+                    Icons.check_circle_outline,
+                    Colors.green,
+                    'completed',
+                    'Completed Tasks'),
                 const SizedBox(width: 10),
-                _buildMetricCard('Pending', _pending, Icons.schedule_outlined, Colors.orange, 'pending', 'Pending Tasks'),
+                _buildMetricCard('Pending', _pending, Icons.schedule_outlined,
+                    Colors.orange, 'pending', 'Pending Tasks'),
                 const SizedBox(width: 10),
-                _buildMetricCard('Missed', _missed, Icons.cancel_outlined, Colors.red, 'missed', 'Missed Tasks'),
+                _buildMetricCard('Missed', _missed, Icons.cancel_outlined,
+                    Colors.red, 'missed', 'Missed Tasks'),
               ],
             ),
             const SizedBox(height: 24),
@@ -383,15 +434,20 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
                     onPressed: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (_) => const TeamExpensesScreen()),
+                        MaterialPageRoute(
+                            builder: (_) => const TeamExpensesScreen()),
                       );
                     },
                     icon: const Icon(Icons.receipt_long, color: Colors.white),
-                    label: const Text('Expense Approvals', style: TextStyle(color: Colors.white)),
+                    label: Text('Expense Approvals',
+                        style: AppTypography.buttonMedium.copyWith(
+                          color: Colors.white,
+                        )),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: primaryBlue,
                       padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
                     ),
                   ),
                 ),
@@ -400,11 +456,15 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
                   child: ElevatedButton.icon(
                     onPressed: () => _showExportDialog(),
                     icon: const Icon(Icons.download, color: primaryBlue),
-                    label: const Text('Export Data', style: TextStyle(color: primaryBlue)),
+                    label: Text('Export Data',
+                        style: AppTypography.secondary.copyWith(
+                          color: primaryBlue,
+                        )),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
                       side: const BorderSide(color: primaryBlue),
                     ),
                   ),
@@ -412,8 +472,10 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
               ],
             ),
             const SizedBox(height: 24),
-            const Text('Team Performance',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+            Text('Team Performance',
+                style: AppTypography.cardTitle.copyWith(
+                  fontWeight: FontWeight.w700,
+                )),
             const SizedBox(height: 12),
             if (_performance.isEmpty)
               _buildEmptyCard('No performance data available')
@@ -423,20 +485,26 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
                 child: ListView.builder(
                   scrollDirection: Axis.horizontal,
                   itemCount: _performance.length,
-                  itemBuilder: (context, index) => _buildPerformanceCard(_performance[index]),
+                  itemBuilder: (context, index) =>
+                      _buildPerformanceCard(_performance[index]),
                 ),
               ),
             const SizedBox(height: 24),
-            const Text('Recent Missed Tasks',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Colors.red)),
+            Text('Recent Missed Tasks',
+                style: AppTypography.cardTitle.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: Colors.red,
+                )),
             const SizedBox(height: 12),
             if (_recentMissed.isEmpty)
               _buildEmptyCard('No recent missed tasks')
             else
               ..._recentMissed.map((task) => _buildMissedTaskCard(task)),
             const SizedBox(height: 24),
-            const Text('All Tasks',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+            Text('All Tasks',
+                style: AppTypography.cardTitle.copyWith(
+                  fontWeight: FontWeight.w700,
+                )),
             const SizedBox(height: 12),
             if (_allTasks.isEmpty)
               _buildEmptyCard('No tasks found')
@@ -460,10 +528,12 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
             _buildExportOption('Tasks', 'tasks', Icons.assignment),
             _buildExportOption('Leads', 'leads', Icons.group),
             _buildExportOption('Expenses', 'expenses', Icons.receipt_long),
+            _buildExportOption('Activities', 'activities', Icons.history),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
         ],
       ),
     );
@@ -476,7 +546,7 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
       trailing: const Icon(Icons.download, size: 20),
       onTap: () async {
         Navigator.pop(context); // Close dialog
-        
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Preparing $title export...')),
         );
@@ -484,16 +554,20 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
         final bytes = await ApiService.downloadExport(entity);
         if (bytes != null) {
           await saveDownloadedFile(bytes, '${entity}_export.csv');
-          
+
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('$title exported successfully!'), backgroundColor: Colors.green),
+              SnackBar(
+                  content: Text('$title exported successfully!'),
+                  backgroundColor: Colors.green),
             );
           }
         } else {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Failed to export data'), backgroundColor: Colors.red),
+              const SnackBar(
+                  content: Text('Failed to export data'),
+                  backgroundColor: Colors.red),
             );
           }
         }
@@ -513,14 +587,17 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
                   Icon(Icons.people_outline, size: 64, color: Colors.grey[300]),
                   const SizedBox(height: 16),
                   Text('No executives found',
-                      style: TextStyle(fontSize: 16, color: Colors.grey[500])),
+                      style: AppTypography.body.copyWith(
+                        color: Colors.grey[500],
+                      )),
                 ],
               ),
             )
           : ListView.builder(
               padding: const EdgeInsets.all(16),
               itemCount: _executives.length,
-              itemBuilder: (context, index) => _buildExecutiveCard(_executives[index]),
+              itemBuilder: (context, index) =>
+                  _buildExecutiveCard(_executives[index]),
             ),
     );
   }
@@ -530,7 +607,10 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
     // Filter tasks by selected executive
     final filteredTasks = _selectedExecutiveFilter == null
         ? _allTasks
-        : _allTasks.where((t) => t['assigned_to']?.toString() == _selectedExecutiveFilter).toList();
+        : _allTasks
+            .where(
+                (t) => t['assigned_to']?.toString() == _selectedExecutiveFilter)
+            .toList();
 
     return RefreshIndicator(
       onRefresh: _loadAllTasks,
@@ -542,33 +622,40 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
             color: Colors.white,
             child: Row(
               children: [
-                const Icon(Icons.filter_list, size: 18, color: Color(0xFF0F3A68)),
+                const Icon(Icons.filter_list,
+                    size: 18, color: Color(0xFF0F3A68)),
                 const SizedBox(width: 8),
                 Expanded(
                   child: DropdownButtonHideUnderline(
                     child: DropdownButton<String?>(
                       value: _selectedExecutiveFilter,
                       isExpanded: true,
-                      hint: const Text('All Executives', style: TextStyle(fontSize: 14)),
-                      style: const TextStyle(fontSize: 14, color: Color(0xFF1A1A1A)),
+                      hint: Text('All Executives',
+                          style: AppTypography.secondary),
+                      style: AppTypography.secondary.copyWith(
+                        color: const Color(0xFF1A1A1A),
+                      ),
                       items: [
-                        const DropdownMenuItem<String?>(
+                        DropdownMenuItem<String?>(
                           value: null,
                           child: Text('All Executives'),
                         ),
                         ..._executives.map((exec) => DropdownMenuItem<String?>(
                               value: exec['id']?.toString(),
-                              child: Text('${exec['name'] ?? 'Unknown'} (${exec['employee_id'] ?? ''})'),
+                              child: Text(
+                                  '${exec['name'] ?? 'Unknown'} (${exec['employee_id'] ?? ''})'),
                             )),
                       ],
-                      onChanged: (val) => setState(() => _selectedExecutiveFilter = val),
+                      onChanged: (val) =>
+                          setState(() => _selectedExecutiveFilter = val),
                     ),
                   ),
                 ),
                 if (_selectedExecutiveFilter != null)
                   IconButton(
                     icon: const Icon(Icons.clear, size: 18, color: Colors.grey),
-                    onPressed: () => setState(() => _selectedExecutiveFilter = null),
+                    onPressed: () =>
+                        setState(() => _selectedExecutiveFilter = null),
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
                   ),
@@ -583,13 +670,16 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.assignment_outlined, size: 64, color: Colors.grey[300]),
+                        Icon(Icons.assignment_outlined,
+                            size: 64, color: Colors.grey[300]),
                         const SizedBox(height: 16),
                         Text(
                           _selectedExecutiveFilter != null
                               ? 'No tasks for this executive'
                               : 'No tasks found',
-                          style: TextStyle(fontSize: 16, color: Colors.grey[500]),
+                          style: AppTypography.body.copyWith(
+                            color: Colors.grey[500],
+                          ),
                         ),
                       ],
                     ),
@@ -597,7 +687,8 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
                 : ListView.builder(
                     padding: const EdgeInsets.all(16),
                     itemCount: filteredTasks.length,
-                    itemBuilder: (context, index) => _buildTaskCard(filteredTasks[index]),
+                    itemBuilder: (context, index) =>
+                        _buildTaskCard(filteredTasks[index]),
                   ),
           ),
         ],
@@ -618,14 +709,19 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
             child: Text(
               (_managerName.isNotEmpty ? _managerName[0] : 'A').toUpperCase(),
               style: const TextStyle(
-                  color: primaryBlue, fontSize: 36, fontWeight: FontWeight.bold),
+                  color: primaryBlue,
+                  fontSize: 36,
+                  fontWeight: FontWeight.bold),
             ),
           ),
           const SizedBox(height: 16),
           Text(_managerName,
-              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
+              style:
+                  const TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
           Text('Manager',
-              style: TextStyle(fontSize: 14, color: Colors.grey[600])),
+              style: AppTypography.secondary.copyWith(
+                color: Colors.grey[600],
+              )),
           const SizedBox(height: 24),
           Container(
             width: double.infinity,
@@ -633,33 +729,45 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(14),
-              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8)],
+              boxShadow: [
+                BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8)
+              ],
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text('System Stats',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                    style:
+                        TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
                 const SizedBox(height: 12),
                 Row(children: [
-                  const Icon(Icons.people_outline, size: 18, color: primaryBlue),
+                  const Icon(Icons.people_outline,
+                      size: 18, color: primaryBlue),
                   const SizedBox(width: 12),
                   Text('${_performance.length} Field Executives',
-                      style: TextStyle(fontSize: 14, color: Colors.grey[700])),
+                      style: AppTypography.secondary.copyWith(
+                        color: Colors.grey[700],
+                      )),
                 ]),
                 const SizedBox(height: 8),
                 Row(children: [
-                  const Icon(Icons.assignment_outlined, size: 18, color: primaryBlue),
+                  const Icon(Icons.assignment_outlined,
+                      size: 18, color: primaryBlue),
                   const SizedBox(width: 12),
                   Text('${_allTasks.length} Total Active Tasks',
-                      style: TextStyle(fontSize: 14, color: Colors.grey[700])),
+                      style: AppTypography.secondary.copyWith(
+                        color: Colors.grey[700],
+                      )),
                 ]),
                 const SizedBox(height: 8),
                 Row(children: [
-                  const Icon(Icons.warning_amber_outlined, size: 18, color: Colors.red),
+                  const Icon(Icons.warning_amber_outlined,
+                      size: 18, color: Colors.red),
                   const SizedBox(width: 12),
                   Text('${_recentMissed.length} Recent Missed Tasks',
-                      style: TextStyle(fontSize: 14, color: Colors.grey[700])),
+                      style: AppTypography.secondary.copyWith(
+                        color: Colors.grey[700],
+                      )),
                 ]),
               ],
             ),
@@ -675,7 +783,8 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
                 backgroundColor: Colors.red,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
               ),
             ),
           ),
@@ -684,7 +793,8 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
     );
   }
 
-  Widget _buildMetricCard(String title, int count, IconData icon, Color color, [String? filterStatus, String? filterLabel]) {
+  Widget _buildMetricCard(String title, int count, IconData icon, Color color,
+      [String? filterStatus, String? filterLabel]) {
     return Expanded(
       child: GestureDetector(
         onTap: () {
@@ -716,7 +826,8 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
               Icon(icon, color: color, size: 24),
               const SizedBox(height: 6),
               Text(title,
-                  style: const TextStyle(fontSize: 11, color: Color(0xFF666666)),
+                  style:
+                      const TextStyle(fontSize: 11, color: Color(0xFF666666)),
                   textAlign: TextAlign.center),
               const SizedBox(height: 4),
               Text('$count',
@@ -733,98 +844,110 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
     return GestureDetector(
       onTap: () => _showExecutiveTasks(exec),
       child: Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 8,
-              offset: const Offset(0, 2))
-        ],
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-          CircleAvatar(
-            backgroundColor: primaryBlue.withOpacity(0.1),
-            child: Text(
-              (exec['name'] ?? 'U')[0].toUpperCase(),
-              style: const TextStyle(
-                  color: primaryBlue, fontWeight: FontWeight.bold),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+                color: Colors.black.withOpacity(0.04),
+                blurRadius: 8,
+                offset: const Offset(0, 2))
+          ],
+        ),
+        child: Column(
+          children: [
+            Row(
               children: [
-                Text(exec['name'] ?? '',
+                CircleAvatar(
+                  backgroundColor: primaryBlue.withOpacity(0.1),
+                  child: Text(
+                    (exec['name'] ?? 'U')[0].toUpperCase(),
                     style: const TextStyle(
-                        fontWeight: FontWeight.w600, fontSize: 15)),
-                Text('${exec['employee_id']} • ${exec['zone'] ?? 'No zone'}',
-                    style: TextStyle(fontSize: 12, color: Colors.grey[600])),
-                if (exec['success_rate'] != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4.0),
-                    child: Builder(
-                      builder: (context) {
-                        final rate = double.tryParse(exec['success_rate'].toString()) ?? 0;
-                        return Text('Success Rate: ${rate.toInt()}% (${exec['completed_tasks']}/${exec['total_tasks']})',
-                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: rate > 70 ? Colors.green : Colors.orange));
-                      }
-                    ),
+                        color: primaryBlue, fontWeight: FontWeight.bold),
                   ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(exec['name'] ?? '',
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w600, fontSize: 15)),
+                      Text(
+                          '${exec['employee_id']} • ${exec['zone'] ?? 'No zone'}',
+                          style: AppTypography.caption.copyWith(
+                            color: Colors.grey[600],
+                          )),
+                      if (exec['success_rate'] != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4.0),
+                          child: Builder(builder: (context) {
+                            final rate = double.tryParse(
+                                    exec['success_rate'].toString()) ??
+                                0;
+                            return Text(
+                                'Success Rate: ${rate.toInt()}% (${exec['completed_tasks']}/${exec['total_tasks']})',
+                                style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: rate > 70
+                                        ? Colors.green
+                                        : Colors.orange));
+                          }),
+                        ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.green.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Text('Active',
+                      style: TextStyle(
+                          color: Colors.green,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600)),
+                ),
               ],
             ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: Colors.green.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Text('Active',
-                style: TextStyle(
-                    color: Colors.green,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600)),
-          ),
-        ],
-      ),
-      const SizedBox(height: 12),
-      const Divider(height: 1),
-      const SizedBox(height: 10),
-      SizedBox(
-        width: double.infinity,
-        child: ElevatedButton.icon(
-          onPressed: () async {
-            final result = await Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => AddVisitScreen(assignedToId: exec['id']),
+            const SizedBox(height: 12),
+            const Divider(height: 1),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () async {
+                  final result = await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) =>
+                          AddVisitScreen(assignedToId: exec['id']),
+                    ),
+                  );
+                  if (result == true) {
+                    _loadData();
+                  }
+                },
+                icon: const Icon(Icons.add_task, size: 18),
+                label: const Text('Assign Task'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue[50],
+                  foregroundColor: primaryBlue,
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
+                ),
               ),
-            );
-            if (result == true) {
-              _loadData();
-            }
-          },
-          icon: const Icon(Icons.add_task, size: 18),
-          label: const Text('Assign Task'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.blue[50],
-            foregroundColor: primaryBlue,
-            padding: const EdgeInsets.symmetric(vertical: 10),
-            elevation: 0,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          ),
+            ),
+          ],
         ),
-      ),
-      ],
-      ),
       ),
     );
   }
@@ -832,10 +955,17 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
   Widget _buildTaskCard(Map<String, dynamic> task) {
     Color statusColor;
     switch (task['status']) {
-      case 'completed': statusColor = Colors.green; break;
-      case 'missed': statusColor = Colors.red; break;
-      case 'in_progress': statusColor = Colors.blue; break;
-      default: statusColor = Colors.orange;
+      case 'completed':
+        statusColor = Colors.green;
+        break;
+      case 'missed':
+        statusColor = Colors.red;
+        break;
+      case 'in_progress':
+        statusColor = Colors.blue;
+        break;
+      default:
+        statusColor = Colors.orange;
     }
 
     // Format scheduled time safely
@@ -848,98 +978,111 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
     } catch (_) {}
 
     return GestureDetector(
-      onTap: () => _showEditTaskDialog(task),
-      child: Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border(left: BorderSide(color: statusColor, width: 3)),
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 8,
-              offset: const Offset(0, 2))
-        ],
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(task['title'] ?? '',
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w600, fontSize: 14)),
-                const SizedBox(height: 4),
-                Row(
+        onTap: () => _showEditTaskDialog(task),
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border(left: BorderSide(color: statusColor, width: 3)),
+            boxShadow: [
+              BoxShadow(
+                  color: Colors.black.withOpacity(0.04),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2))
+            ],
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.person_outline, size: 13, color: Colors.grey[500]),
-                    const SizedBox(width: 4),
-                    Text(task['executive_name'] ?? 'Unassigned',
-                        style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                    Text(task['title'] ?? '',
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w600, fontSize: 14)),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Icon(Icons.person_outline,
+                            size: 13, color: Colors.grey[500]),
+                        const SizedBox(width: 4),
+                        Text(task['executive_name'] ?? 'Unassigned',
+                            style: AppTypography.caption.copyWith(
+                              color: Colors.grey[600],
+                            )),
+                      ],
+                    ),
+                    if (task['client_name'] != null &&
+                        task['client_name'].toString().isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Row(
+                          children: [
+                            Icon(Icons.business_outlined,
+                                size: 13, color: Colors.grey[500]),
+                            const SizedBox(width: 4),
+                            Text(task['client_name'].toString(),
+                                style: AppTypography.caption.copyWith(
+                                  color: Colors.grey[600],
+                                )),
+                          ],
+                        ),
+                      ),
+                    if (scheduledStr.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Row(
+                          children: [
+                            Icon(Icons.schedule_outlined,
+                                size: 13, color: Colors.grey[500]),
+                            const SizedBox(width: 4),
+                            Text(scheduledStr,
+                                style: AppTypography.micro.copyWith(
+                                  color: Colors.grey[500],
+                                )),
+                          ],
+                        ),
+                      ),
+                    if (task['location'] != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Row(
+                          children: [
+                            Icon(Icons.location_on_outlined,
+                                size: 13, color: Colors.grey[500]),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(task['location'],
+                                  style: AppTypography.micro.copyWith(
+                                    color: Colors.grey[500],
+                                  ),
+                                  overflow: TextOverflow.ellipsis),
+                            ),
+                          ],
+                        ),
+                      ),
                   ],
                 ),
-                if (task['client_name'] != null && task['client_name'].toString().isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 2),
-                    child: Row(
-                      children: [
-                        Icon(Icons.business_outlined, size: 13, color: Colors.grey[500]),
-                        const SizedBox(width: 4),
-                        Text(task['client_name'].toString(),
-                            style: TextStyle(fontSize: 12, color: Colors.grey[600])),
-                      ],
-                    ),
-                  ),
-                if (scheduledStr.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 2),
-                    child: Row(
-                      children: [
-                        Icon(Icons.schedule_outlined, size: 13, color: Colors.grey[500]),
-                        const SizedBox(width: 4),
-                        Text(scheduledStr,
-                            style: TextStyle(fontSize: 11, color: Colors.grey[500])),
-                      ],
-                    ),
-                  ),
-                if (task['location'] != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 2),
-                    child: Row(
-                      children: [
-                        Icon(Icons.location_on_outlined, size: 13, color: Colors.grey[500]),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(task['location'],
-                              style: TextStyle(fontSize: 11, color: Colors.grey[500]),
-                              overflow: TextOverflow.ellipsis),
-                        ),
-                      ],
-                    ),
-                  ),
-              ],
-            ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: statusColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  (task['status'] ?? '').toUpperCase(),
+                  style: TextStyle(
+                      color: statusColor,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: statusColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Text(
-              (task['status'] ?? '').toUpperCase(),
-              style: TextStyle(
-                  color: statusColor,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w600),
-            ),
-          ),
-        ],
-      ),
-    ));
+        ));
   }
 
   Widget _buildEmptyCard(String message) {
@@ -957,7 +1100,8 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
   }
 
   Widget _buildPerformanceCard(Map<String, dynamic> perf) {
-    final double successRate = double.tryParse(perf['success_rate']?.toString() ?? '0') ?? 0.0;
+    final double successRate =
+        double.tryParse(perf['success_rate']?.toString() ?? '0') ?? 0.0;
     return Container(
       width: 140,
       margin: const EdgeInsets.only(right: 12),
@@ -965,7 +1109,9 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10)],
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10)
+        ],
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -976,19 +1122,24 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
               CircularProgressIndicator(
                 value: successRate / 100,
                 backgroundColor: Colors.grey[100],
-                color: successRate > 70 ? Colors.green : (successRate > 40 ? Colors.orange : Colors.red),
+                color: successRate > 70
+                    ? Colors.green
+                    : (successRate > 40 ? Colors.orange : Colors.red),
                 strokeWidth: 6,
               ),
-              Text('${successRate.toInt()}%', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+              Text('${successRate.toInt()}%',
+                  style: const TextStyle(
+                      fontSize: 10, fontWeight: FontWeight.bold)),
             ],
           ),
           const SizedBox(height: 12),
-          Text(perf['name'] ?? '', 
-              maxLines: 1, 
+          Text(perf['name'] ?? '',
+              maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+              style:
+                  const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
           const SizedBox(height: 4),
-          Text('${perf['completed_tasks']}/${perf['total_tasks']} Tasks', 
+          Text('${perf['completed_tasks']}/${perf['total_tasks']} Tasks',
               style: TextStyle(fontSize: 11, color: Colors.grey[600])),
         ],
       ),
@@ -1003,7 +1154,9 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
         border: const Border(left: BorderSide(color: Colors.red, width: 4)),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8)],
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8)
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1011,15 +1164,25 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(task['title'] ?? '', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
-              Text(_safeFormatTime(task['updated_at']), 
-                  style: TextStyle(fontSize: 11, color: Colors.grey[500])),
+              Text(task['title'] ?? '',
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w700, fontSize: 14)),
+              Text(_safeFormatTime(task['updated_at']),
+                  style: AppTypography.micro.copyWith(
+                    color: Colors.grey[500],
+                  )),
             ],
           ),
           const SizedBox(height: 4),
-          Text('Executive: ${task['executive_name'] ?? 'Unknown'}', style: TextStyle(fontSize: 12, color: Colors.grey[700])),
+          Text('Executive: ${task['executive_name'] ?? 'Unknown'}',
+              style: AppTypography.caption.copyWith(
+                color: Colors.grey[700],
+              )),
           const SizedBox(height: 2),
-          Text('Client: ${task['client_name'] ?? 'N/A'}', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+          Text('Client: ${task['client_name'] ?? 'N/A'}',
+              style: AppTypography.caption.copyWith(
+                color: Colors.grey[600],
+              )),
         ],
       ),
     );
@@ -1047,7 +1210,8 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
                     padding: const EdgeInsets.all(16),
                     decoration: const BoxDecoration(
                       color: primaryBlue,
-                      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                      borderRadius:
+                          BorderRadius.vertical(top: Radius.circular(20)),
                     ),
                     child: Row(
                       children: [
@@ -1055,7 +1219,10 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
                           backgroundColor: Colors.white24,
                           child: Text(
                             (exec['name'] ?? 'U')[0].toUpperCase(),
-                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                            style: AppTypography.buttonMedium.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -1064,9 +1231,13 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(exec['name'] ?? 'Executive',
-                                  style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                                  style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold)),
                               Text(exec['employee_id'] ?? '',
-                                  style: const TextStyle(color: Colors.white70, fontSize: 13)),
+                                  style: const TextStyle(
+                                      color: Colors.white70, fontSize: 13)),
                             ],
                           ),
                         ),
@@ -1081,13 +1252,21 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
                     child: FutureBuilder<Map<String, dynamic>>(
                       future: ApiService.getExecutiveTasks(exec['id']),
                       builder: (context, snapshot) {
-                        if (snapshot.connectionState == ConnectionState.waiting) {
-                          return const Center(child: CircularProgressIndicator());
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return const Center(
+                              child: CircularProgressIndicator());
                         }
-                        if (snapshot.hasError || snapshot.data?['success'] != true) {
-                          return Center(child: Text('Failed to load tasks', style: TextStyle(color: Colors.grey[600])));
+                        if (snapshot.hasError ||
+                            snapshot.data?['success'] != true) {
+                          return Center(
+                              child: Text('Failed to load tasks',
+                                  style: AppTypography.secondary.copyWith(
+                                    color: Colors.grey[600],
+                                  )));
                         }
-                        final tasks = snapshot.data?['data'] as List<dynamic>? ?? [];
+                        final tasks =
+                            snapshot.data?['data'] as List<dynamic>? ?? [];
                         if (tasks.isEmpty) {
                           return _buildEmptyCard('No tasks assigned');
                         }
@@ -1095,7 +1274,8 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
                           controller: controller,
                           padding: const EdgeInsets.all(16),
                           itemCount: tasks.length,
-                          itemBuilder: (context, index) => _buildTaskCard(tasks[index]),
+                          itemBuilder: (context, index) =>
+                              _buildTaskCard(tasks[index]),
                         );
                       },
                     ),
@@ -1115,10 +1295,9 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
     bool isSaving = false;
 
     showDialog(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
+        context: context,
+        builder: (context) {
+          return StatefulBuilder(builder: (context, setState) {
             return AlertDialog(
               title: const Text('Edit Task'),
               content: SingleChildScrollView(
@@ -1126,18 +1305,24 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Task: ${task['title']}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                    Text('Task: ${task['title']}',
+                        style: const TextStyle(fontWeight: FontWeight.bold)),
                     const SizedBox(height: 16),
                     const Text('Status'),
                     const SizedBox(height: 8),
                     DropdownButtonFormField<String>(
                       value: currentStatus,
-                      decoration: const InputDecoration(border: OutlineInputBorder()),
+                      decoration:
+                          const InputDecoration(border: OutlineInputBorder()),
                       items: const [
-                        DropdownMenuItem(value: 'pending', child: Text('Pending')),
-                        DropdownMenuItem(value: 'in_progress', child: Text('In Progress')),
-                        DropdownMenuItem(value: 'completed', child: Text('Completed')),
-                        DropdownMenuItem(value: 'missed', child: Text('Missed')),
+                        DropdownMenuItem(
+                            value: 'pending', child: Text('Pending')),
+                        DropdownMenuItem(
+                            value: 'in_progress', child: Text('In Progress')),
+                        DropdownMenuItem(
+                            value: 'completed', child: Text('Completed')),
+                        DropdownMenuItem(
+                            value: 'missed', child: Text('Missed')),
                       ],
                       onChanged: (val) {
                         if (val != null) {
@@ -1169,7 +1354,8 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
                       ? null
                       : () async {
                           setState(() => isSaving = true);
-                          final res = await ApiService.adminUpdateTask(task['id'], {
+                          final res =
+                              await ApiService.adminUpdateTask(task['id'], {
                             'status': currentStatus,
                             'notes': notesController.text,
                           });
@@ -1178,27 +1364,36 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
                             if (mounted) {
                               Navigator.pop(context);
                               ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Task updated successfully')));
+                                  const SnackBar(
+                                      content:
+                                          Text('Task updated successfully')));
                               _loadAllTasks(); // Refresh tasks list
                             }
                           } else {
                             if (mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text(res['message'] ?? 'Failed to update')));
+                                  SnackBar(
+                                      content: Text(res['message'] ??
+                                          'Failed to update')));
                             }
                           }
                         },
                   style: ElevatedButton.styleFrom(backgroundColor: primaryBlue),
                   child: isSaving
-                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                      : const Text('Save', style: TextStyle(color: Colors.white)),
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                              color: Colors.white, strokeWidth: 2))
+                      : Text('Save',
+                          style: AppTypography.buttonMedium.copyWith(
+                            color: Colors.white,
+                          )),
                 ),
               ],
             );
-          }
-        );
-      }
-    );
+          });
+        });
   }
 
   String _safeFormatTime(String? dateStr) {
@@ -1209,7 +1404,8 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
     } catch (_) {
       try {
         // Try parsing common MySQL format
-        return DateFormat('HH:mm').format(DateFormat("yyyy-MM-dd HH:mm:ss").parse(dateStr));
+        return DateFormat('HH:mm')
+            .format(DateFormat("yyyy-MM-dd HH:mm:ss").parse(dateStr));
       } catch (e) {
         return '';
       }
