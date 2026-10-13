@@ -35,7 +35,7 @@ android {
         applicationId = "com.pegasos.fieldexecutive"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
-        versionCode = 12
+        versionCode = 13
         versionName = "1.0.0"
     }
 
