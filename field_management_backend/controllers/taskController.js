@@ -49,19 +49,44 @@ const updateTaskStatus = (req, res) => {
 };
 
 const createTask = (req, res) => {
-    const { title, description, assignedTo, location, scheduledTime, type } = req.body;
+    const {
+        title, description, assignedTo,
+        clientId, clientName, location,
+        scheduledTime, type, notes
+    } = req.body;
 
     const query = `
-    INSERT INTO tasks (title, description, assigned_to, location, scheduled_time, type, status, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, 'pending', NOW())
-  `;
+        INSERT INTO tasks (
+            title, description, assigned_to, assigned_by,
+            client_id, client_name, location, scheduled_time,
+            type, status, notes, created_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, NOW())
+    `;
 
-    db.execute(query, [title, description, assignedTo, location, scheduledTime, type], (err, result) => {
+    db.execute(query, [
+        title,
+        description || null,
+        assignedTo,
+        req.user.userId,
+        clientId || null,
+        clientName || null,
+        location || null,
+        scheduledTime || null,
+        type,
+        notes || null
+    ], (err, result) => {
         if (err) {
+            console.error('Create task error:', err);
             return res.status(500).json({ error: 'Database error' });
         }
-        res.json({ message: 'Task created successfully', taskId: result.insertId });
+
+        res.status(201).json({
+            message: 'Task created successfully',
+            taskId: result.insertId
+        });
     });
 };
+
 
 module.exports = { getTasks, updateTaskStatus, createTask };
