@@ -11,6 +11,7 @@ import 'notifications_screen.dart';
 import '../services/api_service.dart';
 import 'package:provider/provider.dart';
 import '../providers/theme_provider.dart';
+import 'call_recordings_screen.dart';
 
 class TasksScreen extends StatefulWidget {
   final String? initialFilter;
@@ -525,6 +526,18 @@ class _TasksScreenState extends State<TasksScreen>
         ),
         actions: [
           IconButton(
+            icon: const Icon(Icons.phone_in_talk, color: Colors.white),
+            tooltip: 'Call Recordings',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const CallRecordingsScreen(),
+                ),
+              );
+            },
+          ),
+          IconButton(
             icon: Icon(
               themeProvider.isDarkMode
                   ? Icons.dark_mode
@@ -888,6 +901,31 @@ class _TasksScreenState extends State<TasksScreen>
                 child: IconButton(
                   icon: const Icon(Icons.phone, color: Colors.white, size: 20),
                   onPressed: () => _makeCall(visit.phoneNumber),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: Colors.purple.withOpacity(0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: IconButton(
+                  icon: const Icon(Icons.mic, color: Colors.purple, size: 20),
+                  tooltip: 'Recordings',
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => CallRecordingsScreen(
+                          filterTaskId: visit.id,
+                          initialClientName: visit.clientName,
+                          initialPhoneNumber: visit.phoneNumber,
+                        ),
+                      ),
+                    );
+                  },
                 ),
               ),
             ],

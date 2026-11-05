@@ -11,8 +11,9 @@ import '../services/api_service.dart';
 import '../utils/download_helper.dart';
 import 'package:provider/provider.dart';
 import '../providers/theme_provider.dart';
+import 'call_recordings_screen.dart';
 
-// ── Lead Model (aligned with backend 6-stage pipeline) ──
+// ── Lead Model ──
 class Lead {
   final int? id; // Backend ID
   final String name;
@@ -20,7 +21,7 @@ class Lead {
   final String email;
   final String company;
   final String source;
-  String status; // new, contacted, qualified, proposal, won, lost
+  String status; // new, follow-up, prospect, proposal, interested, not interested, dead, junk
   String? classification; // hot, warm, cold
   final String notes;
   final DateTime createdAt;
@@ -49,23 +50,42 @@ class Lead {
         'notes': notes,
       };
 
-  factory Lead.fromJson(Map<String, dynamic> json) => Lead(
-        id: json['id'],
-        // Support both backend field names and local names
-        name: json['client_name'] ?? json['name'] ?? '',
-        phone: json['client_phone'] ?? json['phone'] ?? '',
-        email: json['client_email'] ?? json['email'] ?? '',
-        company: json['company'] ?? '',
-        source: json['source'] ?? '',
-        status: json['status'] ?? 'new',
-        classification: json['classification'],
-        notes: json['notes'] ?? '',
-        createdAt: json['created_at'] != null
-            ? DateTime.parse(json['created_at'])
-            : json['createdAt'] != null
-                ? DateTime.parse(json['createdAt'])
-                : DateTime.now(),
-      );
+  factory Lead.fromJson(Map<String, dynamic> json) {
+    String rawStatus =
+        (json['status'] ?? 'new').toString().trim().toLowerCase();
+    // Normalize and support legacy lead status mappings
+    if (rawStatus == 'contacted') {
+      rawStatus = 'follow-up';
+    } else if (rawStatus == 'qualified') {
+      rawStatus = 'prospect';
+    } else if (rawStatus == 'lost') {
+      rawStatus = 'dead';
+    } else if (rawStatus == 'won') {
+      rawStatus = 'interested';
+    } else if (rawStatus == 'follow_up' || rawStatus == 'follow up') {
+      rawStatus = 'follow-up';
+    } else if (rawStatus == 'not_interested' || rawStatus == 'not-interested') {
+      rawStatus = 'not interested';
+    }
+
+    return Lead(
+      id: json['id'],
+      // Support both backend field names and local names
+      name: json['client_name'] ?? json['name'] ?? '',
+      phone: json['client_phone'] ?? json['phone'] ?? '',
+      email: json['client_email'] ?? json['email'] ?? '',
+      company: json['company'] ?? '',
+      source: json['source'] ?? '',
+      status: rawStatus,
+      classification: json['classification'],
+      notes: json['notes'] ?? '',
+      createdAt: json['created_at'] != null
+          ? DateTime.parse(json['created_at'])
+          : json['createdAt'] != null
+              ? DateTime.parse(json['createdAt'])
+              : DateTime.now(),
+    );
+  }
 }
 
 class LeadsScreen extends StatefulWidget {
@@ -168,20 +188,62 @@ class _LeadsScreenState extends State<LeadsScreen> {
   // All valid pipeline statuses
   static const List<String> _allStatuses = [
     'new',
-    'contacted',
-    'qualified',
+    'follow-up',
+    'prospect',
     'proposal',
-    'won',
-    'lost'
+    'interested',
+    'not interested',
+    'dead',
+    'junk',
   ];
   static const List<String> _allClassifications = ['hot', 'warm', 'cold'];
+
+  static String _normalizeStatus(String status) {
+    final s = status.trim().toLowerCase();
+    if (s == 'contacted') return 'follow-up';
+    if (s == 'qualified') return 'prospect';
+    if (s == 'lost') return 'dead';
+    if (s == 'won') return 'interested';
+    if (s == 'follow_up' || s == 'follow up') return 'follow-up';
+    if (s == 'not_interested' || s == 'not-interested') return 'not interested';
+    return s;
+  }
+
+  static String _statusDisplayName(String status) {
+    switch (_normalizeStatus(status)) {
+      case 'new':
+        return 'New';
+      case 'follow-up':
+        return 'Follow-up';
+      case 'prospect':
+        return 'Prospect';
+      case 'proposal':
+        return 'Proposal';
+      case 'interested':
+      case 'won':
+        return 'Interested';
+      case 'not interested':
+        return 'Not Interested';
+      case 'dead':
+        return 'Dead';
+      case 'junk':
+        return 'Junk';
+      default:
+        return status.isNotEmpty
+            ? status[0].toUpperCase() + status.substring(1)
+            : status;
+    }
+  }
 
   List<Lead> _getFilteredLeads() {
     List<Lead> filtered = _leads;
 
     if (_selectedFilter != 'All') {
-      final filterStatus = _selectedFilter.toLowerCase();
-      filtered = filtered.where((l) => l.status == filterStatus).toList();
+      filtered = filtered
+          .where((l) =>
+              _statusDisplayName(l.status).toLowerCase() ==
+              _selectedFilter.toLowerCase())
+          .toList();
     }
 
     if (_selectedClassificationFilter != 'All') {
@@ -202,57 +264,72 @@ class _LeadsScreenState extends State<LeadsScreen> {
   }
 
   Color _statusColor(String status) {
-    switch (status) {
+    switch (_normalizeStatus(status)) {
       case 'new':
         return const Color(0xFF3B82F6);
-      case 'contacted':
+      case 'follow-up':
         return const Color(0xFFF59E0B);
-      case 'qualified':
+      case 'prospect':
         return const Color(0xFF10B981);
       case 'proposal':
         return const Color(0xFFF97316);
+      case 'interested':
       case 'won':
         return const Color(0xFF059669);
-      case 'lost':
+      case 'not interested':
+        return const Color(0xFF64748B);
+      case 'dead':
         return const Color(0xFFEF4444);
+      case 'junk':
+        return const Color(0xFF9CA3AF);
       default:
         return Colors.grey;
     }
   }
 
   IconData _statusIcon(String status) {
-    switch (status) {
+    switch (_normalizeStatus(status)) {
       case 'new':
         return Icons.fiber_new;
-      case 'contacted':
+      case 'follow-up':
         return Icons.phone_callback;
-      case 'qualified':
+      case 'prospect':
         return Icons.verified;
       case 'proposal':
         return Icons.description_outlined;
+      case 'interested':
       case 'won':
-        return Icons.emoji_events;
-      case 'lost':
+        return Icons.thumb_up_alt_outlined;
+      case 'not interested':
+        return Icons.do_not_disturb_alt_outlined;
+      case 'dead':
         return Icons.cancel_outlined;
+      case 'junk':
+        return Icons.delete_outline;
       default:
         return Icons.circle;
     }
   }
 
   String _statusLabel(String status) {
-    switch (status) {
+    switch (_normalizeStatus(status)) {
       case 'new':
         return 'NEW';
-      case 'contacted':
-        return 'CONTACTED';
-      case 'qualified':
-        return 'QUALIFIED';
+      case 'follow-up':
+        return 'FOLLOW-UP';
+      case 'prospect':
+        return 'PROSPECT';
       case 'proposal':
         return 'PROPOSAL';
+      case 'interested':
       case 'won':
-        return 'WON';
-      case 'lost':
-        return 'LOST';
+        return 'INTERESTED';
+      case 'not interested':
+        return 'NOT INTERESTED';
+      case 'dead':
+        return 'DEAD';
+      case 'junk':
+        return 'JUNK';
       default:
         return status.toUpperCase();
     }
@@ -363,13 +440,26 @@ class _LeadsScreenState extends State<LeadsScreen> {
 
     setState(() => _isLoading = true);
     try {
-      final response = await ApiService.updateLeadStatus(lead.id!, newStatus);
+      var response = await ApiService.updateLeadStatus(lead.id!, newStatus);
+      // Fallback for unmigrated backend if it returns 'Invalid status'
+      if (response['success'] != true &&
+          response['message'] == 'Invalid status') {
+        String? legacyStatus;
+        if (newStatus == 'follow-up') legacyStatus = 'contacted';
+        if (newStatus == 'prospect') legacyStatus = 'qualified';
+        if (newStatus == 'dead') legacyStatus = 'lost';
+        if (newStatus == 'interested') legacyStatus = 'won';
+        if (legacyStatus != null) {
+          response = await ApiService.updateLeadStatus(lead.id!, legacyStatus);
+        }
+      }
+
       if (response['success'] == true) {
         await _loadLeads();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
               content:
-                  Text('Lead status updated to ${newStatus.toUpperCase()}'),
+                  Text('Lead status updated to ${_statusLabel(newStatus)}'),
               backgroundColor: Colors.green),
         );
       } else {
@@ -478,7 +568,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
                 const SizedBox(height: 12),
                 _dialogField(sourceCtrl, 'Source', Icons.source_outlined),
                 const SizedBox(height: 16),
-                // Status selector (6-stage pipeline)
+                // Status selector (pipeline)
                 const Text('Status',
                     style: TextStyle(
                         fontSize: 13,
@@ -692,6 +782,18 @@ class _LeadsScreenState extends State<LeadsScreen> {
             onPressed: () => themeProvider.toggleTheme(),
           ),
           IconButton(
+            icon: const Icon(Icons.phone_in_talk, color: Colors.white),
+            tooltip: 'Call Recordings',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const CallRecordingsScreen(),
+                ),
+              );
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.refresh, color: Colors.white),
             onPressed: _loadLeads,
           ),
@@ -747,7 +849,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
             ),
           ),
 
-          // Filter chips (6-stage pipeline)
+          // Filter chips (pipeline)
           Container(
             padding: const EdgeInsets.symmetric(vertical: 12),
             child: Center(
@@ -760,8 +862,7 @@ class _LeadsScreenState extends State<LeadsScreen> {
                     children: [
                       ...[
                         'All',
-                        ..._allStatuses
-                            .map((s) => s[0].toUpperCase() + s.substring(1))
+                        ..._allStatuses.map((s) => _statusDisplayName(s))
                       ].map((filter) {
                         final isSelected = _selectedFilter == filter;
                         final filterKey = filter.toLowerCase();
@@ -1189,13 +1290,29 @@ class _LeadsScreenState extends State<LeadsScreen> {
                   children: [
                     _actionButton(Icons.phone, 'Call', primaryBlue,
                         () => _makeCall(lead.phone)),
+                    _actionButton(
+                      Icons.mic_none,
+                      'Recordings',
+                      Colors.purple,
+                      () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => CallRecordingsScreen(
+                            filterLeadId: lead.id,
+                            initialClientName: lead.name,
+                            initialPhoneNumber: lead.phone,
+                          ),
+                        ),
+                      ),
+                    ),
                     if (lead.email.isNotEmpty)
                       _actionButton(Icons.email_outlined, 'Email', Colors.teal,
                           () => _sendEmail(lead.email)),
                     if (lead.phone.isNotEmpty)
                       _actionButton(Icons.chat_outlined, 'WhatsApp', Colors.green,
                           () => _sendWhatsApp(lead.phone)),
-                    if (['proposal', 'won', 'lost'].contains(lead.status))
+                    if (['proposal', 'interested', 'won', 'lost', 'dead']
+                        .contains(lead.status.toLowerCase()))
                       _actionButton(Icons.file_copy_outlined, 'Proposals',
                           Colors.orange, () => _showProposalsDialog(lead)),
                   ],

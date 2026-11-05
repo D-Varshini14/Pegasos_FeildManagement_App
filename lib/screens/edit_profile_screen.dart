@@ -442,6 +442,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         keyboardType: keyboardType,
         validator: validator,
         readOnly: readOnly,
+        maxLines: 1,
         style: GoogleFonts.inter(
           fontSize: 16,
           fontWeight: FontWeight.w500,

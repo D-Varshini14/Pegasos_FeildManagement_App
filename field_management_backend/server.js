@@ -1512,7 +1512,22 @@ app.put('/api/leads/:leadId/status', authenticateToken, async (req, res) => {
         const userId = req.user.userId;
         const isAdmin = req.user.role === 'admin';
 
-        const validStatuses = ['new', 'contacted', 'qualified', 'proposal', 'won', 'lost'];
+       const validStatuses = [
+           'new',
+           'follow-up',
+           'follow_up',
+           'contacted',
+           'prospect',
+           'qualified',
+           'proposal',
+           'interested',
+           'won',
+           'not interested',
+           'not_interested',
+           'dead',
+           'lost',
+           'junk'
+       ];
         if (!validStatuses.includes(status)) return res.status(400).json({ success: false, message: 'Invalid status' });
 
         const whereExtra = isAdmin ? '' : 'AND assigned_to = ?';

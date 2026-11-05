@@ -19,6 +19,7 @@ import '../services/notification_service.dart';
 import 'package:provider/provider.dart';
 import '../providers/theme_provider.dart';
 import 'expense_screen.dart';
+import 'call_recordings_screen.dart';
 import '../utils/app_typography.dart';
 
 class Visit {
@@ -609,6 +610,18 @@ class _HomeScreenState extends State<HomeScreen> {
                 Row(
                   children: [
                     IconButton(
+                      icon: const Icon(Icons.phone_in_talk, color: Colors.white, size: 22),
+                      tooltip: 'Call Recordings',
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const CallRecordingsScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    IconButton(
                       icon: Icon(
                         themeProvider.isDarkMode
                             ? Icons.dark_mode
@@ -1111,40 +1124,70 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  GestureDetector(
-                    onTap: () async {
-                      final uri = Uri.parse('tel:$phoneNumber');
-                      if (await canLaunchUrl(uri)) {
-                        await launchUrl(uri);
-                      } else {
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Could not call $phoneNumber'),
-                              backgroundColor: Colors.red,
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      GestureDetector(
+                        onTap: () async {
+                          final uri = Uri.parse('tel:$phoneNumber');
+                          if (await canLaunchUrl(uri)) {
+                            await launchUrl(uri);
+                          } else {
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Could not call $phoneNumber'),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                            }
+                          }
+                        },
+                        child: Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: primaryBlue,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: primaryBlue.withOpacity(0.2),
+                                spreadRadius: 0,
+                                blurRadius: 4,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: const Icon(Icons.phone_outlined,
+                              color: Colors.white, size: 18),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => CallRecordingsScreen(
+                                filterTaskId: _visits[index].isTask ? _visits[index].id : null,
+                                initialClientName: name,
+                                initialPhoneNumber: phoneNumber,
+                              ),
                             ),
                           );
-                        }
-                      }
-                    },
-                    child: Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: primaryBlue,
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: primaryBlue.withOpacity(0.2),
-                            spreadRadius: 0,
-                            blurRadius: 4,
-                            offset: const Offset(0, 2),
+                        },
+                        child: Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: Colors.purple.withOpacity(0.12),
+                            shape: BoxShape.circle,
                           ),
-                        ],
+                          child: const Icon(Icons.mic,
+                              color: Colors.purple, size: 18),
+                        ),
                       ),
-                      child: const Icon(Icons.phone_outlined,
-                          color: Colors.white, size: 18),
-                    ),
+                    ],
                   ),
                 ],
               ),

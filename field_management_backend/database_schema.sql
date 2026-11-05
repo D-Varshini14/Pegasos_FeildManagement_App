@@ -138,7 +138,22 @@ CREATE TABLE leads (
     client_phone VARCHAR(20),
     company VARCHAR(150),
     source VARCHAR(100),
-    status ENUM('new', 'contacted', 'qualified', 'proposal', 'won', 'lost') DEFAULT 'new',
+    status ENUM(
+        'new',
+        'follow-up',
+        'follow_up',
+        'contacted',
+        'prospect',
+        'qualified',
+        'proposal',
+        'interested',
+        'won',
+        'not interested',
+        'not_interested',
+        'dead',
+        'lost',
+        'junk'
+    ) DEFAULT 'new',
     classification ENUM('hot', 'warm', 'cold') DEFAULT NULL,
     notes TEXT,
     follow_up_date DATE,
@@ -218,7 +233,8 @@ INSERT INTO notifications (user_id, title, message, type) VALUES
 (2, 'New Task Assigned', 'You have been assigned a site evaluation task at Anna Nagar', 'task_assigned'),
 (2, 'Follow-up Reminder', 'Your follow-up visit with Venkatesh R is scheduled for today', 'visit_reminder'),
 (2, 'New Lead', 'A new lead has been assigned to you - Suresh Babu from NewCo Ltd', 'lead_update');
-C R E A T E   T A B L E   l e a d _ p r o p o s a l s   (   i d   I N T   P R I M A R Y   K E Y   A U T O _ I N C R E M E N T ,   l e a d _ i d   I N T   N O T   N U L L ,   f i l e _ p a t h   V A R C H A R ( 5 0 0 )   N O T   N U L L ,   o r i g i n a l _ f i l e n a m e   V A R C H A R ( 2 5 5 )   N O T   N U L L ,   s t a t u s   E N U M ( ' p e n d i n g ' ,   ' w o n ' ,   ' l o s t ' )   D E F A U L T   ' p e n d i n g ' ,   c r e a t e d _ a t   T I M E S T A M P   D E F A U L T   C U R R E N T _ T I M E S T A M P ,   F O R E I G N   K E Y   ( l e a d _ i d )   R E F E R E N C E S   l e a d s ( i d )   O N   D E L E T E   C A S C A D E   ) ;  
+C R E A T E   T A B L E   l e a d _ p r o p o s a l s   (   i d   I N T   P R I M A R Y   K E Y   A U T O _ I N C R E M E N T ,   l e a d _ i d   I N T   N O T   N U L L ,   f i l e _ p a t h   V A R C H A R ( 5 0 0 )   N O T   N U L L ,   o r i g i n a l _ f i l e n a m e   V A R C H A R ( 2 5 5 )   N O T   N U L L ,   s t a t u s   E N U M ( ' p e n d i n g ' ,   ' w o n ' ,   ' l o s t ' )   D E F A U L T   ' p e n d i n g ' ,   c r e a t e d _ a t   T I M E S T A M P   D E F A U L T   C U R R E N T _ T I M E S T A M P ,   F O R E I G N   K E Y   ( l e a d _ i d )   R E F E R E N C E S   l e a d s ( i d )   O N   D E L E T E   C A S C A D E   ) ; 
+ 
  
 -- ============================================================
 -- 10. EXPENSE AND EXPENSE FORMS (Phase 9)

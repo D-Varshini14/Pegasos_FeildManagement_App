@@ -13,6 +13,7 @@ import 'activities_screen.dart';
 import 'leave.dart';
 import 'support_screen.dart';
 import 'settings_screen.dart';
+import 'call_recordings_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -736,6 +737,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 },
                               ),
                               _buildMenuOption(
+                                Icons.phone_in_talk,
+                                'Call Recordings',
+                                () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => const CallRecordingsScreen(),
+                                    ),
+                                  );
+                                },
+                              ),
+                              _buildMenuOption(
                                 Icons.person_outline,
                                 'Contact HR',
                                 () {
@@ -848,6 +861,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildCompactDetailCard(IconData icon, String label, String value) {
+    final bool isEmail = label.toLowerCase().contains('email');
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -876,15 +890,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ],
           ),
           const SizedBox(height: 8),
-          Text(
-            value,
-            style: GoogleFonts.inter(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: Colors.black,
+          SizedBox(
+            width: double.infinity,
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              child: Text(
+                value,
+                style: GoogleFonts.inter(
+                  fontSize: isEmail ? 12.5 : 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black,
+                ),
+                maxLines: 1,
+                softWrap: false,
+              ),
             ),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),

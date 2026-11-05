@@ -29,26 +29,116 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _rememberMe = false;
   String _errorMessage = '';
 
+  String _savedEmail = '';
+  String _savedPassword = '';
+
   static const Color primaryBlue = Color(0xFF0F3A68);
+  static const String _cryptoKey = 'PegasosFieldMgmt2026SecureKey';
+
+  static String _encodeSecure(String plainText) {
+    if (plainText.isEmpty) return '';
+    final bytes = utf8.encode(plainText);
+    final keyBytes = utf8.encode(_cryptoKey);
+    final xorBytes = List<int>.generate(
+        bytes.length, (i) => bytes[i] ^ keyBytes[i % keyBytes.length]);
+    return base64Encode(xorBytes);
+  }
+
+  static String _decodeSecure(String encodedText) {
+    if (encodedText.isEmpty) return '';
+    try {
+      final bytes = base64Decode(encodedText);
+      final keyBytes = utf8.encode(_cryptoKey);
+      final xorBytes = List<int>.generate(
+          bytes.length, (i) => bytes[i] ^ keyBytes[i % keyBytes.length]);
+      return utf8.decode(xorBytes);
+    } catch (_) {
+      return '';
+    }
+  }
 
   @override
   void initState() {
     super.initState();
-    _emailFocus.addListener(() => setState(() {}));
-    _passFocus.addListener(() => setState(() {}));
-    _loadRememberedEmail();
+    _emailFocus.addListener(_onEmailFocusChange);
+    _passFocus.addListener(_onPasswordFocusChange);
+    _loadRememberedCredentials();
   }
 
-  /// Load saved email if user previously checked "Remember Me"
-  Future<void> _loadRememberedEmail() async {
-    final prefs = await SharedPreferences.getInstance();
-    final savedEmail = prefs.getString('remember_me_email');
-    if (savedEmail != null && savedEmail.isNotEmpty) {
-      setState(() {
-        _emailController.text = savedEmail;
-        _rememberMe = true;
-      });
+  void _onEmailFocusChange() {
+    if (_emailFocus.hasFocus) {
+      _autoFillCredentials();
     }
+    setState(() {});
+  }
+
+  void _onPasswordFocusChange() {
+    if (_passFocus.hasFocus) {
+      _autoFillCredentials();
+    }
+    setState(() {});
+  }
+
+  /// Automatically fills in saved credentials if Remember Me was chosen
+  void _autoFillCredentials() {
+    if (_savedEmail.isNotEmpty && _savedPassword.isNotEmpty) {
+      bool updated = false;
+      if (_emailController.text.trim().isEmpty) {
+        _emailController.text = _savedEmail;
+        updated = true;
+      }
+      if (_emailController.text.trim() == _savedEmail &&
+          (_passwordController.text.isEmpty ||
+              _passwordController.text != _savedPassword)) {
+        _passwordController.text = _savedPassword;
+        updated = true;
+      }
+      if (!_rememberMe) {
+        _rememberMe = true;
+        updated = true;
+      }
+      if (updated && mounted) {
+        setState(() {});
+      }
+    }
+  }
+
+  /// Load saved credentials if user previously checked "Remember Me"
+  Future<void> _loadRememberedCredentials() async {
+    final prefs = await SharedPreferences.getInstance();
+    final isRemembered = prefs.getBool('remember_me_enabled') ?? false;
+    final savedEmail = prefs.getString('remember_me_email') ?? '';
+    final savedPassEnc = prefs.getString('remember_me_password_enc') ?? '';
+
+    if (savedEmail.isNotEmpty && savedPassEnc.isNotEmpty && isRemembered) {
+      final savedPass = _decodeSecure(savedPassEnc);
+      if (mounted) {
+        setState(() {
+          _savedEmail = savedEmail;
+          _savedPassword = savedPass;
+          _rememberMe = true;
+          _emailController.text = savedEmail;
+          _passwordController.text = savedPass;
+        });
+      }
+    } else if (savedEmail.isNotEmpty && isRemembered) {
+      if (mounted) {
+        setState(() {
+          _savedEmail = savedEmail;
+          _rememberMe = true;
+          _emailController.text = savedEmail;
+        });
+      }
+    }
+  }
+
+  Future<void> _clearSavedCredentials() async {
+    _savedEmail = '';
+    _savedPassword = '';
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('remember_me_enabled');
+    await prefs.remove('remember_me_email');
+    await prefs.remove('remember_me_password_enc');
   }
 
   Future<void> _handleLogin() async {
@@ -81,11 +171,14 @@ class _LoginScreenState extends State<LoginScreen> {
         await prefs.setString('token', response['data']['token']);
         await prefs.setString('user', jsonEncode(response['data']['user']));
 
-        // Save or clear remembered email
+        // Save or clear remembered credentials
         if (_rememberMe) {
+          await prefs.setBool('remember_me_enabled', true);
           await prefs.setString('remember_me_email', _emailController.text.trim());
+          await prefs.setString(
+              'remember_me_password_enc', _encodeSecure(_passwordController.text));
         } else {
-          await prefs.remove('remember_me_email');
+          await _clearSavedCredentials();
         }
 
         try {
@@ -688,6 +781,8 @@ class _LoginScreenState extends State<LoginScreen> {
                         isPassword: false,
                         prefixIcon: Icons.email_outlined,
                         keyboardType: TextInputType.emailAddress,
+                        onTap: _autoFillCredentials,
+                        autofillHints: const [AutofillHints.email],
                       ),
                       const SizedBox(height: 16),
 
@@ -701,6 +796,8 @@ class _LoginScreenState extends State<LoginScreen> {
                         obscureText: _obscurePassword,
                         onToggleVisibility: () => setState(
                             () => _obscurePassword = !_obscurePassword),
+                        onTap: _autoFillCredentials,
+                        autofillHints: const [AutofillHints.password],
                       ),
                       const SizedBox(height: 8),
 
@@ -710,7 +807,14 @@ class _LoginScreenState extends State<LoginScreen> {
                         children: [
                           // Remember Me checkbox
                           GestureDetector(
-                            onTap: () => setState(() => _rememberMe = !_rememberMe),
+                            onTap: () {
+                              setState(() => _rememberMe = !_rememberMe);
+                              if (!_rememberMe) {
+                                _clearSavedCredentials();
+                              } else {
+                                _autoFillCredentials();
+                              }
+                            },
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
@@ -719,7 +823,14 @@ class _LoginScreenState extends State<LoginScreen> {
                                   height: 22,
                                   child: Checkbox(
                                     value: _rememberMe,
-                                    onChanged: (val) => setState(() => _rememberMe = val ?? false),
+                                    onChanged: (val) {
+                                      setState(() => _rememberMe = val ?? false);
+                                      if (!_rememberMe) {
+                                        _clearSavedCredentials();
+                                      } else {
+                                        _autoFillCredentials();
+                                      }
+                                    },
                                     activeColor: primaryBlue,
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(4),
@@ -843,6 +954,8 @@ class _Field extends StatelessWidget {
     this.obscureText = false,
     this.onToggleVisibility,
     this.keyboardType,
+    this.onTap,
+    this.autofillHints,
   });
 
   final TextEditingController controller;
@@ -853,6 +966,8 @@ class _Field extends StatelessWidget {
   final bool obscureText;
   final VoidCallback? onToggleVisibility;
   final TextInputType? keyboardType;
+  final VoidCallback? onTap;
+  final Iterable<String>? autofillHints;
 
   static const Color primaryBlue = Color(0xFF0F3A68);
 
@@ -873,6 +988,8 @@ class _Field extends StatelessWidget {
       child: TextField(
         controller: controller,
         focusNode: focusNode,
+        onTap: onTap,
+        autofillHints: autofillHints,
         obscureText: isPassword ? obscureText : false,
         autocorrect: false,
         enableSuggestions: false,

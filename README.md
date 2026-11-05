@@ -7,7 +7,7 @@ A comprehensive mobile and web application designed for field executives and man
 - **Role-Based Access**: Dedicated panels for Admins and Executives.
 - **Dynamic Dashboard**: Real-time metrics and charts for monthly visits, targets, and feedback.
 - **Task & Visit Management**: Check-in with GPS tracking, create/update visits, and view client history.
-- **Lead Management**: Complete 6-stage pipeline (New, Contacted, Qualified, Proposal, Won, Lost) with classifications.
+- **Lead Management**: Complete 8-stage pipeline (New, Follow-up, Prospect, Proposal, Won, Not Interested, Dead, Junk) with classifications.
 - **Dark/Light Mode**: Full theme customization available across the app.
 - **Notifications & Reminders**: Email notifications for password resets and visit updates.
 - **Offline & Cache**: Saves login credentials and preferences securely on the device.
